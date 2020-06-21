@@ -3,6 +3,7 @@ module github.com/Xelon-AG/xelon-cloud-controller-manager
 go 1.14
 
 require (
+	github.com/Xelon-AG/xelon-sdk-go v0.1.0 // indirect
 	k8s.io/api v0.17.5 // indirect
 	k8s.io/apimachinery v0.17.5 // indirect
 	k8s.io/client-go v0.17.5 // indirect

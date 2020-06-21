@@ -1,8 +1,11 @@
 package xelon
 
 import (
+	"fmt"
 	"io"
+	"os"
 
+	"github.com/Xelon-AG/xelon-sdk-go/xelon"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
@@ -12,6 +15,7 @@ const (
 )
 
 type cloud struct {
+	client        *xelon.Client
 	loadbalancers cloudprovider.LoadBalancer
 }
 
@@ -22,7 +26,21 @@ func init() {
 }
 
 func newCloud() (cloudprovider.Interface, error) {
-	return nil, nil
+	token := os.Getenv("XELON_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("%s must be set in the environment (use k8s secret)", token)
+	}
+
+	xelonClient := xelon.NewClient(token)
+	// TODO: set correct user agent
+	if apiUrl := os.Getenv("XELON_API_URL"); apiUrl != "" {
+		xelonClient.SetBaseURL(apiUrl)
+	}
+
+	return &cloud{
+		client:        xelonClient,
+		loadbalancers: newLoadBalancers(xelonClient),
+	}, nil
 }
 
 func (c *cloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
