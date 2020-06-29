@@ -33,8 +33,8 @@ func newCloud() (cloudprovider.Interface, error) {
 
 	xelonClient := xelon.NewClient(token)
 	// TODO: set correct user agent
-	if apiUrl := os.Getenv("XELON_API_URL"); apiUrl != "" {
-		xelonClient.SetBaseURL(apiUrl)
+	if apiURL := os.Getenv("XELON_API_URL"); apiURL != "" {
+		xelonClient.SetBaseURL(apiURL)
 	}
 
 	return &cloud{
@@ -47,7 +47,7 @@ func (c *cloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, 
 }
 
 func (c *cloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	return c.loadbalancers, false
+	return c.loadbalancers, true
 }
 
 func (c *cloud) Instances() (cloudprovider.Instances, bool) {
