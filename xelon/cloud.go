@@ -1,6 +1,7 @@
 package xelon
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,10 @@ import (
 
 const (
 	ProviderName string = "xelon"
+
+	xelonAPIURLEnv    string = "XELON_API_URL"
+	xelonClusterIDEnv string = "XELON_CLUSTER_ID"
+	xelonTokenEnv     string = "XELON_TOKEN"
 )
 
 type cloud struct {
@@ -26,24 +31,35 @@ func init() {
 }
 
 func newCloud() (cloudprovider.Interface, error) {
-	token := os.Getenv("XELON_TOKEN")
+	token := os.Getenv(xelonTokenEnv)
 	if token == "" {
-		return nil, fmt.Errorf("%s must be set in the environment (use k8s secret)", token)
+		return nil, fmt.Errorf("environment variabel %q is required (use k8s secret)", xelonTokenEnv)
+	}
+
+	clusterID := os.Getenv(xelonClusterIDEnv)
+	if clusterID == "" {
+		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
 	}
 
 	xelonClient := xelon.NewClient(token)
-	// TODO: set correct user agent
-	if apiURL := os.Getenv("XELON_API_URL"); apiURL != "" {
+	xelonClient.SetUserAgent("xelon-cloud-controller-manager")
+
+	if apiURL := os.Getenv(xelonAPIURLEnv); apiURL != "" {
 		xelonClient.SetBaseURL(apiURL)
+	}
+
+	tenant, _, err := xelonClient.Tenant.Get(context.Background())
+	if err != nil {
+		return nil, err
 	}
 
 	return &cloud{
 		client:        xelonClient,
-		loadbalancers: newLoadBalancers(xelonClient),
+		loadbalancers: newLoadBalancers(xelonClient, tenant.TenantID, clusterID),
 	}, nil
 }
 
-func (c *cloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+func (c *cloud) Initialize(_ cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {
 }
 
 func (c *cloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {

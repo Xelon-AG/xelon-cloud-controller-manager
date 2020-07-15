@@ -52,6 +52,8 @@ spec:
                 secretKeyRef:
                   name: xelon
                   key: api-url
+            - name: XELON_CLUSTER_ID
+              value: kub1
 
 ---
 apiVersion: v1
