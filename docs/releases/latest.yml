@@ -43,15 +43,9 @@ spec:
               memory: 50Mi
           env:
             - name: XELON_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: xelon
-                  key: token
+              value: "INSERT_TOKEN_HERE"
             - name: XELON_API_URL
-              valueFrom:
-                secretKeyRef:
-                  name: xelon
-                  key: api-url
+              value: "INSERT_API_URL_HERE"
             - name: XELON_CLUSTER_ID
               value: kub1
 
