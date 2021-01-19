@@ -33,7 +33,7 @@ func init() {
 func newCloud() (cloudprovider.Interface, error) {
 	token := os.Getenv(xelonTokenEnv)
 	if token == "" {
-		return nil, fmt.Errorf("environment variabel %q is required (use k8s secret)", xelonTokenEnv)
+		return nil, fmt.Errorf("environment variable %q is required (use k8s secret)", xelonTokenEnv)
 	}
 
 	clusterID := os.Getenv(xelonClusterIDEnv)

@@ -17,13 +17,6 @@ const (
 	annotationXelonLoadBalancerID = "kubernetes.xelon.ch/load-balancer-id"
 
 	annotationXelonLoadBalancerName = "service.beta.kubernetes.io/xelon-loadbalancer-name"
-
-	annotationXelonHealthCheckPath                   = "service.beta.kubernetes.io/xelon-loadbalancer-healthcheck-path"
-	annotationXelonHealthCheckPort                   = "service.beta.kubernetes.io/xelon-loadbalancer-healthcheck-port"
-	annotationXelonHealthCheckIntervalSeconds        = "service.beta.kubernetes.io/xelon-loadbalancer-healthcheck-interval-seconds"
-	annotationXelonHealthCheckResponseTimeoutSeconds = "service.beta.kubernetes.io/xelon-loadbalancer-healthcheck-response-timeout-seconds"
-	annotationXelonHealthCheckUnhealthyThreshold     = "service.beta.kubernetes.io/xelon-loadbalancer-healthcheck-unhealthy-threshold"
-	annotationXelonHealthCheckHealthyThreshold       = "service.beta.kubernetes.io/xelon-loadbalancer-healthcheck-healthy-threshold"
 )
 
 var errLoadBalancerNotFound = errors.New("loadbalancer not found")
@@ -186,18 +179,6 @@ func (l *loadBalancers) retrieveLoadBalancer(ctx context.Context, service *v1.Se
 	return lb, nil
 }
 
-// func (l *loadBalancers) findLoadBalancerByID(ctx context.Context, id string) (*xelon.LoadBalancer, error) {
-// 	lb, resp, err := l.client.LoadBalancer.Get(ctx, l.tenantID, id)
-// 	if err != nil {
-// 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-// 			return nil, errLoadBalancerNotFound
-// 		}
-//
-// 		return nil, fmt.Errorf("failed to get load-balancer by ID %s: %s", id, err)
-// 	}
-// 	return lb, nil
-// }
-
 func (l *loadBalancers) getLoadBalancers(ctx context.Context) ([]xelon.LoadBalancer, error) {
 	lbs, _, err := l.client.LoadBalancer.List(ctx, l.tenantID)
 	if err != nil {
@@ -239,10 +220,6 @@ func getLoadBalancerName(service *v1.Service) string {
 
 func getLoadBalancerLegacyName(service *v1.Service) string {
 	return cloudprovider.DefaultLoadBalancerName(service)
-}
-
-func getLoadBalancerID(service *v1.Service) string {
-	return service.ObjectMeta.Annotations[annotationXelonLoadBalancerID]
 }
 
 func updateServiceAnnotation(service *v1.Service, annotationName, annotationValue string) {
