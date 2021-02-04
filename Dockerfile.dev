@@ -1,0 +1,8 @@
+FROM alpine:3.12
+
+RUN apk add --no-cache ca-certificates \
+    && rm -rf /var/cache/apk/*
+
+ADD build/xelon-cloud-controller-manager /bin/
+
+CMD ["/bin/xelon-cloud-controller-manager"]

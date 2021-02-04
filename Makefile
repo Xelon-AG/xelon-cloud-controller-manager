@@ -51,7 +51,7 @@ test:
 .PHONE: build-docker
 build-docker: build
 	@echo "==> Building docker image $(IMAGE_NAME):dev..."
-	@docker build -t $(IMAGE_NAME):dev .
+	@docker build -f Dockerfile.dev -t $(IMAGE_NAME):dev .
 
 
 help: Makefile
