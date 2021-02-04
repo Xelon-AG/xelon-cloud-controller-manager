@@ -159,13 +159,6 @@ func (l *loadBalancers) retrieveAndAnnotateLoadBalancer(ctx context.Context, ser
 }
 
 func (l *loadBalancers) retrieveLoadBalancer(ctx context.Context, service *v1.Service) (*xelon.LoadBalancer, error) {
-	// id := getLoadBalancerID(service)
-	// if len(id) > 0 {
-	// 	klog.V(2).Infof("looking up load-balancer for service %s/%s by ID %s", service.Namespace, service.Name, id)
-	//
-	// 	return l.findLoadBalancerByID(ctx, id)
-	// }
-
 	allLBs, err := l.getLoadBalancers(ctx)
 	if err != nil {
 		return nil, err
@@ -233,7 +226,7 @@ func updateServiceAnnotation(service *v1.Service, annotationName, annotationValu
 func (l *loadBalancers) buildCreateLoadBalancerRequest(ctx context.Context, service *v1.Service, nodes []*v1.Node) (*xelon.LoadBalancerCreateRequest, error) {
 	lbName := getLoadBalancerName(service)
 
-	forwardingRules, err := buildForwardingRules(service)
+	forwardingRules, err := buildForwardingRules(service, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +240,8 @@ func (l *loadBalancers) buildCreateLoadBalancerRequest(ctx context.Context, serv
 }
 
 // buildUpdateLoadBalancerRequest returns a *xelon.LoadBalancerUpdateForwardingRulesRequest to balance requests for service across nodes.
-func (l *loadBalancers) buildUpdateLoadBalancerRequest(ctx context.Context, service *v1.Service) (*xelon.LoadBalancerUpdateForwardingRulesRequest, error) {
-	forwardingRules, err := buildForwardingRules(service)
+func (l *loadBalancers) buildUpdateLoadBalancerRequest(ctx context.Context, service *v1.Service, nodes []*v1.Node) (*xelon.LoadBalancerUpdateForwardingRulesRequest, error) {
+	forwardingRules, err := buildForwardingRules(service, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -259,23 +252,27 @@ func (l *loadBalancers) buildUpdateLoadBalancerRequest(ctx context.Context, serv
 }
 
 // buildForwardingRules returns the forwarding rules of the Load Balancer of service.
-func buildForwardingRules(service *v1.Service) ([]xelon.LoadBalancerForwardingRule, error) {
+func buildForwardingRules(service *v1.Service, nodes []*v1.Node) ([]xelon.LoadBalancerForwardingRule, error) {
 	var forwardingRules []xelon.LoadBalancerForwardingRule
 
 	for _, port := range service.Spec.Ports {
-		forwardingRule, err := buildForwardingRule(&port)
-		if err != nil {
-			return nil, err
+		for _, node := range nodes {
+			nodeInternalIP := getNodeInternalIP(node)
+			forwardingRule, err := buildForwardingRule(&port, nodeInternalIP)
+			if err != nil {
+				return nil, err
+			}
+			forwardingRules = append(forwardingRules, *forwardingRule)
 		}
-		forwardingRules = append(forwardingRules, *forwardingRule)
 	}
 
 	return forwardingRules, nil
 }
 
-func buildForwardingRule(port *v1.ServicePort) (*xelon.LoadBalancerForwardingRule, error) {
+func buildForwardingRule(port *v1.ServicePort, nodeIP string) (*xelon.LoadBalancerForwardingRule, error) {
 	var forwardingRule xelon.LoadBalancerForwardingRule
 
+	forwardingRule.IP = nodeIP
 	forwardingRule.Ports = []int{int(port.Port), int(port.NodePort)}
 
 	return &forwardingRule, nil
@@ -290,7 +287,7 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, lb *xelon.LoadBa
 		return nil, fmt.Errorf("failed to build load-balancer request: %s", err)
 	}
 
-	lbRequest, err := l.buildUpdateLoadBalancerRequest(ctx, service)
+	lbRequest, err := l.buildUpdateLoadBalancerRequest(ctx, service, nodes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build load-balancer request (post-certificate update): %s", err)
 	}
@@ -304,6 +301,16 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, lb *xelon.LoadBa
 	logLBInfo("UPDATE", lbRequest, 2)
 
 	return lb, nil
+}
+
+func getNodeInternalIP(node *v1.Node) string {
+	for _, addr := range node.Status.Addresses {
+		logLBInfo("getNodeInternalIP", addr, 2)
+		if addr.Type == v1.NodeInternalIP {
+			return addr.Address
+		}
+	}
+	return ""
 }
 
 // logLBInfo wraps around klog and logs LB operation type and LB configuration info.
