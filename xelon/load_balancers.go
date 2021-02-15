@@ -75,12 +75,12 @@ func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, clusterName stri
 
 	case errLoadBalancerNotFound:
 		// LB missing
-		_, _, err := l.client.LoadBalancer.Create(ctx, l.tenantID, lbRequest)
+		_, _, err := l.client.LoadBalancers.Create(ctx, l.tenantID, lbRequest)
 		logLBInfo("CREATE", lbRequest, 2)
 		if err != nil {
 			return nil, err
 		}
-		lbs, _, err := l.client.LoadBalancer.List(ctx, l.tenantID)
+		lbs, _, err := l.client.LoadBalancers.List(ctx, l.tenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, clusterNa
 		return err
 	}
 
-	resp, err := l.client.LoadBalancer.Delete(ctx, l.tenantID, lb.LocalID)
+	resp, err := l.client.LoadBalancers.Delete(ctx, l.tenantID, lb.LocalID)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil
@@ -173,7 +173,8 @@ func (l *loadBalancers) retrieveLoadBalancer(ctx context.Context, service *v1.Se
 }
 
 func (l *loadBalancers) getLoadBalancers(ctx context.Context) ([]xelon.LoadBalancer, error) {
-	lbs, _, err := l.client.LoadBalancer.List(ctx, l.tenantID)
+	logLBInfo("getLoadBalancers", "running LB list", 2)
+	lbs, _, err := l.client.LoadBalancers.List(ctx, l.tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +273,7 @@ func buildForwardingRules(service *v1.Service, nodes []*v1.Node) ([]xelon.LoadBa
 func buildForwardingRule(port *v1.ServicePort, nodeIP string) (*xelon.LoadBalancerForwardingRule, error) {
 	var forwardingRule xelon.LoadBalancerForwardingRule
 
-	forwardingRule.IP = nodeIP
+	forwardingRule.IP = []string{nodeIP}
 	forwardingRule.Ports = []int{int(port.Port), int(port.NodePort)}
 
 	return &forwardingRule, nil
@@ -293,7 +294,7 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, lb *xelon.LoadBa
 	}
 
 	lbID := lb.LocalID
-	_, _, err = l.client.LoadBalancer.UpdateForwardingRules(ctx, l.tenantID, lbID, lbRequest)
+	_, _, err = l.client.LoadBalancers.UpdateForwardingRules(ctx, l.tenantID, lbID, lbRequest)
 	if err != nil {
 		logLBInfo("UPDATE", lbRequest, 2)
 		return nil, fmt.Errorf("failed to update load-balancer with ID %s: %s", lbID, err)
