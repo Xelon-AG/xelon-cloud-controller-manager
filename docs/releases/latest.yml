@@ -32,11 +32,14 @@ spec:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
       containers:
-        - image: xelonag/xelon-cloud-controller-manager
+        - image: xelonag/xelon-cloud-controller-manager:dev
           name: xelon-cloud-controller-manager
+          args:
+            - --v=2
           command:
             - "/bin/xelon-cloud-controller-manager"
             - "--leader-elect=false"
+          imagePullPolicy: "Always"
           resources:
             requests:
               cpu: 100m
