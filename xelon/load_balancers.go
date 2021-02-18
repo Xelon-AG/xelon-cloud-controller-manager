@@ -54,7 +54,7 @@ func (l *loadBalancers) GetLoadBalancer(ctx context.Context, clusterName string,
 }
 
 func (l *loadBalancers) GetLoadBalancerName(_ context.Context, _ string, service *v1.Service) string {
-	return getLoadBalancerName(service)
+	return getLoadBalancerName(service, l.clusterID)
 }
 
 func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
@@ -164,7 +164,7 @@ func (l *loadBalancers) retrieveLoadBalancer(ctx context.Context, service *v1.Se
 		return nil, err
 	}
 
-	lb := findLoadBalancerByName(service, allLBs)
+	lb := findLoadBalancerByName(service, allLBs, l.clusterID)
 	if lb == nil {
 		return nil, errLoadBalancerNotFound
 	}
@@ -181,8 +181,8 @@ func (l *loadBalancers) getLoadBalancers(ctx context.Context) ([]xelon.LoadBalan
 	return lbs, nil
 }
 
-func findLoadBalancerByName(service *v1.Service, allLBs []xelon.LoadBalancer) *xelon.LoadBalancer {
-	customName := getLoadBalancerName(service)
+func findLoadBalancerByName(service *v1.Service, allLBs []xelon.LoadBalancer, clusterID string) *xelon.LoadBalancer {
+	customName := getLoadBalancerName(service, clusterID)
 	legacyName := getLoadBalancerLegacyName(service)
 	candidates := []string{customName}
 	if legacyName != customName {
@@ -202,14 +202,14 @@ func findLoadBalancerByName(service *v1.Service, allLBs []xelon.LoadBalancer) *x
 	return nil
 }
 
-func getLoadBalancerName(service *v1.Service) string {
-	name := service.Annotations[annotationXelonLoadBalancerName]
-
-	if len(name) > 0 {
-		return name
+func getLoadBalancerName(service *v1.Service, clusterID string) string {
+	lbNameFromAnnotation := service.Annotations[annotationXelonLoadBalancerName]
+	if lbNameFromAnnotation == "" {
+		lbNameFromAnnotation = getLoadBalancerLegacyName(service)
 	}
 
-	return getLoadBalancerLegacyName(service)
+	name := fmt.Sprintf("lb-%v-%v", clusterID, lbNameFromAnnotation)
+	return name
 }
 
 func getLoadBalancerLegacyName(service *v1.Service) string {
@@ -225,7 +225,7 @@ func updateServiceAnnotation(service *v1.Service, annotationName, annotationValu
 
 // buildCreateLoadBalancerRequest returns a *xelon.LoadBalancerCreateRequest to balance requests for service across nodes.
 func (l *loadBalancers) buildCreateLoadBalancerRequest(ctx context.Context, service *v1.Service, nodes []*v1.Node) (*xelon.LoadBalancerCreateRequest, error) {
-	lbName := getLoadBalancerName(service)
+	lbName := getLoadBalancerName(service, l.clusterID)
 
 	forwardingRules, err := buildForwardingRules(service, nodes)
 	if err != nil {
