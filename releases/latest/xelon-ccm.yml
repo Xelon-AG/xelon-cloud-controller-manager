@@ -50,7 +50,7 @@ spec:
             - name: XELON_API_URL
               value: "INSERT_API_URL_HERE"
             - name: XELON_CLUSTER_ID
-              value: kub1
+              value: "INSERT_CLUSTER_ID_HERE"
 
 ---
 apiVersion: v1
