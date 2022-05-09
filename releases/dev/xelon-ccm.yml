@@ -49,6 +49,8 @@ spec:
               value: "INSERT_TOKEN_HERE"
             - name: XELON_API_URL
               value: "INSERT_API_URL_HERE"
+            - name: XELON_CLOUD_ID
+              value: "INSERT_CLOUD_ID_HERE"
             - name: XELON_CLUSTER_ID
               value: "INSERT_CLUSTER_ID_HERE"
 
