@@ -35,8 +35,8 @@ github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 h1:d+Bc7a5rLufV
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
 github.com/Rican7/retry v0.1.0/go.mod h1:FgOROf8P5bebcC1DS0PdOQiqGUridaZvikzUmkFW6gg=
 github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
-github.com/Xelon-AG/xelon-sdk-go v0.4.1-0.20220509062856-e133ae6d3dff h1:kXz+KBsf3s1Pzx4tkwq4FVbn6o4nwtR9CwwX940yTS8=
-github.com/Xelon-AG/xelon-sdk-go v0.4.1-0.20220509062856-e133ae6d3dff/go.mod h1:Th52Z5nh2BfJU2dJsX5Q2M4FdwJFapR9dpQQV0c2GFI=
+github.com/Xelon-AG/xelon-sdk-go v0.5.0 h1:cxeNOkd9F2+h0Rc67eqkg9md/k1Vzd2sJO5gzYa8GPs=
+github.com/Xelon-AG/xelon-sdk-go v0.5.0/go.mod h1:Th52Z5nh2BfJU2dJsX5Q2M4FdwJFapR9dpQQV0c2GFI=
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
 github.com/ajstarks/svgo v0.0.0-20180226025133-644b8db467af/go.mod h1:K08gAheRH3/J6wwsYMMT4xOr94bZjxIelGM0+d/wbFw=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
