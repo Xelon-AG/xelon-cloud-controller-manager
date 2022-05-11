@@ -24,13 +24,15 @@ var errLoadBalancerNotFound = errors.New("loadbalancer not found")
 type loadBalancers struct {
 	client    *xelon.Client
 	tenantID  string
+	cloudID   string
 	clusterID string
 }
 
-func newLoadBalancers(client *xelon.Client, tenantID, clusterID string) cloudprovider.LoadBalancer {
+func newLoadBalancers(client *xelon.Client, tenantID, cloudID, clusterID string) cloudprovider.LoadBalancer {
 	return &loadBalancers{
 		client:    client,
 		tenantID:  tenantID,
+		cloudID:   cloudID,
 		clusterID: clusterID,
 	}
 }
@@ -234,6 +236,7 @@ func (l *loadBalancers) buildCreateLoadBalancerRequest(ctx context.Context, serv
 
 	return &xelon.LoadBalancerCreateRequest{
 		ForwardingRules: forwardingRules,
+		CloudID:         l.cloudID,
 		Name:            lbName,
 		Type:            1,
 		ServerID:        []string{l.clusterID},

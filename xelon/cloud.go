@@ -15,6 +15,7 @@ const (
 	ProviderName string = "xelon"
 
 	xelonAPIURLEnv    string = "XELON_API_URL"
+	xelonCLoudIDEnv   string = "XELON_CLOUD_ID"
 	xelonClusterIDEnv string = "XELON_CLUSTER_ID"
 	xelonTokenEnv     string = "XELON_TOKEN"
 )
@@ -36,6 +37,11 @@ func newCloud() (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("environment variable %q is required (use k8s secret)", xelonTokenEnv)
 	}
 
+	cloudID := os.Getenv(xelonCLoudIDEnv)
+	if cloudID == "" {
+		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
+	}
+
 	clusterID := os.Getenv(xelonClusterIDEnv)
 	if clusterID == "" {
 		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
@@ -55,7 +61,7 @@ func newCloud() (cloudprovider.Interface, error) {
 
 	return &cloud{
 		client:        xelonClient,
-		loadbalancers: newLoadBalancers(xelonClient, tenant.TenantID, clusterID),
+		loadbalancers: newLoadBalancers(xelonClient, tenant.TenantID, cloudID, clusterID),
 	}, nil
 }
 
