@@ -32,7 +32,7 @@ spec:
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
       containers:
-        - image: xelonag/xelon-cloud-controller-manager:latest
+        - image: xelonag/xelon-cloud-controller-manager:v0.3.0
           name: xelon-cloud-controller-manager
           args:
             - --v=2
