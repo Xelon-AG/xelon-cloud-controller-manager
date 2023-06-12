@@ -1,32 +1,47 @@
-name: unit tests
+name: Tests
+
 on:
+  pull_request:
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "README.md"
   push:
-    paths:
-      - '**.go'
+    branches: [ master ]
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "README.md"
+
+permissions:
+  contents: read
 
 jobs:
   unit_tests:
+    name: unit tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-          go-version: 1.15
+          go-version: "1.20"
 
       - name: Set up cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
+            ~/.cache/go-build
             ~/go/pkg/mod
-            .bin
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-
+          key: ${{ runner.os }}-go-${{ hashFiles('go.sum', 'tools/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install tools
+        run: make tools
 
       - name: Lint source code
-        run: make tools lint
+        run: make lint
 
       - name: Run unit tests
         run: make test
