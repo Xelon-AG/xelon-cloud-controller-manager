@@ -33,7 +33,7 @@ lint:
 build:
 	@echo "==> Building binary..."
 	@echo "    running go build for GOOS=linux GOARCH=amd64"
-	@GOOS=linux GOARCH=amd64 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) main.go
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) main.go
 
 
 ## test: Run all unit tests.
