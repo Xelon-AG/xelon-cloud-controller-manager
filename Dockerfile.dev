@@ -1,6 +1,8 @@
-FROM alpine:3.18
+FROM alpine:3.18.0
 
 RUN apk add --no-cache ca-certificates \
+    # upgrade openssl package to fix vulnerabilities
+    && apk add openssl \
     && rm -rf /var/cache/apk/*
 
 ADD build/xelon-cloud-controller-manager /bin/
