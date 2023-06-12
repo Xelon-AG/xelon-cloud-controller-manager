@@ -15,7 +15,8 @@ const (
 	ProviderName string = "xelon"
 
 	xelonAPIURLEnv    string = "XELON_API_URL"
-	xelonCLoudIDEnv   string = "XELON_CLOUD_ID"
+	xelonClientIDEnv  string = "XELON_CLIENT_ID"
+	xelonCloudIDEnv   string = "XELON_CLOUD_ID"
 	xelonClusterIDEnv string = "XELON_CLUSTER_ID"
 	xelonTokenEnv     string = "XELON_TOKEN"
 )
@@ -37,7 +38,7 @@ func newCloud() (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("environment variable %q is required (use k8s secret)", xelonTokenEnv)
 	}
 
-	cloudID := os.Getenv(xelonCLoudIDEnv)
+	cloudID := os.Getenv(xelonCloudIDEnv)
 	if cloudID == "" {
 		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
 	}
@@ -47,14 +48,21 @@ func newCloud() (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
 	}
 
-	xelonClient := xelon.NewClient(token)
-	xelonClient.SetUserAgent("xelon-cloud-controller-manager")
-
+	userAgent := "xelon-cloud-controller-manager"
+	opts := []xelon.ClientOption{xelon.WithUserAgent(userAgent)}
 	if apiURL := os.Getenv(xelonAPIURLEnv); apiURL != "" {
-		xelonClient.SetBaseURL(apiURL)
+		opts = append(opts, xelon.WithBaseURL(apiURL))
+	}
+	if clientID := os.Getenv(xelonClientIDEnv); clientID != "" {
+		opts = append(opts, xelon.WithClientID(clientID))
+	} else {
+		// Not yet mandatory but will be in 2024
+		fmt.Printf("WARNING: environment variable %q is required (use k8s secret)", xelonClientIDEnv)
 	}
 
-	tenant, _, err := xelonClient.Tenant.Get(context.Background())
+	xelonClient := xelon.NewClient(token, opts...)
+
+	tenant, _, err := xelonClient.Tenants.GetCurrent(context.Background())
 	if err != nil {
 		return nil, err
 	}
