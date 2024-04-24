@@ -13,7 +13,9 @@ linters:
     - vet
 
 output:
-  format: tab
+  formats:
+    - format: tab
+  show-stats: true
 
 run:
-  deadline: 10m
+  timeout: 10m

@@ -1,4 +1,4 @@
-package xelon
+package internal
 
 import (
 	"context"
@@ -25,11 +25,6 @@ const (
 type cloud struct {
 	client        *xelon.Client
 	loadbalancers cloudprovider.LoadBalancer
-}
-
-func (c *cloud) InstancesV2() (cloudprovider.InstancesV2, bool) {
-	// TODO implement m
-	panic("implement me")
 }
 
 func init() {
@@ -87,6 +82,10 @@ func (c *cloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 }
 
 func (c *cloud) Instances() (cloudprovider.Instances, bool) {
+	return nil, false
+}
+
+func (c *cloud) InstancesV2() (cloudprovider.InstancesV2, bool) {
 	return nil, false
 }
 
