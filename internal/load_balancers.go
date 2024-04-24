@@ -1,4 +1,4 @@
-package xelon
+package internal
 
 import (
 	"context"

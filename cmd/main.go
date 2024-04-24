@@ -17,7 +17,7 @@ import (
 	_ "k8s.io/component-base/metrics/prometheus/version"  // for version metric registration
 	"k8s.io/klog/v2"
 
-	"github.com/Xelon-AG/xelon-cloud-controller-manager/xelon"
+	"github.com/Xelon-AG/xelon-cloud-controller-manager/internal"
 )
 
 func main() {
@@ -28,8 +28,8 @@ func main() {
 		klog.Errorf("failed to initialize command options: %v", err)
 		os.Exit(1)
 	}
-	opts.KubeCloudShared.CloudProvider.Name = xelon.ProviderName
-	// opts.Authentication.SkipInClusterLookup = true
+	opts.KubeCloudShared.CloudProvider.Name = internal.ProviderName
+	opts.Authentication.SkipInClusterLookup = true
 
 	command := app.NewCloudControllerManagerCommand(
 		opts,

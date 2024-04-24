@@ -5,13 +5,15 @@ IMAGE_NAME := xelonag/xelon-cloud-controller-manager
 # Build variables
 .DEFAULT_GOAL = test
 BUILD_DIR := build
+TOOLS_DIR := $(shell pwd)/tools
+TOOLS_BIN_DIR := ${TOOLS_DIR}/bin
 
 
 ## tools: Install required tooling.
 .PHONY: tools
 tools:
 	@echo "==> Installing required tooling..."
-	@cd tools && go install github.com/golangci/golangci-lint/cmd/golangci-lint
+	@cd tools && GOBIN=${TOOLS_BIN_DIR} go install github.com/golangci/golangci-lint/cmd/golangci-lint
 
 
 ## clean: Delete the build directory.
@@ -25,7 +27,7 @@ clean:
 .PHONY: lint
 lint:
 	@echo "==> Linting code with 'golangci-lint'..."
-	@golangci-lint run ./...
+	@${TOOLS_BIN_DIR}/golangci-lint run
 
 
 ## build: Build binary for linux/amd64 system.
@@ -33,7 +35,7 @@ lint:
 build:
 	@echo "==> Building binary..."
 	@echo "    running go build for GOOS=linux GOARCH=amd64"
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) main.go
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) cmd/main.go
 
 
 ## test: Run all unit tests.
