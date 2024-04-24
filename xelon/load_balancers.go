@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Xelon-AG/xelon-sdk-go/xelon"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
+
+	"github.com/Xelon-AG/xelon-sdk-go/xelon"
 )
 
 const (
