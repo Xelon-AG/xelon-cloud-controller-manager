@@ -6,9 +6,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/Xelon-AG/xelon-sdk-go/xelon"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
+
+	"github.com/Xelon-AG/xelon-sdk-go/xelon"
 )
 
 const (
@@ -24,6 +25,11 @@ const (
 type cloud struct {
 	client        *xelon.Client
 	loadbalancers cloudprovider.LoadBalancer
+}
+
+func (c *cloud) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	// TODO implement m
+	panic("implement me")
 }
 
 func init() {
