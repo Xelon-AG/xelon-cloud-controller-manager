@@ -1,4 +1,4 @@
-package internal
+package xelon
 
 import (
 	"context"
@@ -23,6 +23,8 @@ const (
 var errLoadBalancerNotFound = errors.New("loadbalancer not found")
 
 type loadBalancers struct {
+	// k8sClient kubernetes.Interface
+
 	client    *xelon.Client
 	tenantID  string
 	cloudID   string
@@ -38,10 +40,10 @@ func newLoadBalancers(client *xelon.Client, tenantID, cloudID, clusterID string)
 	}
 }
 
-func (l *loadBalancers) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
+func (l *loadBalancers) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
 	lb, err := l.retrieveAndAnnotateLoadBalancer(ctx, service)
 	if err != nil {
-		if err == errLoadBalancerNotFound {
+		if errors.Is(err, errLoadBalancerNotFound) {
 			return nil, false, nil
 		}
 		return nil, false, err

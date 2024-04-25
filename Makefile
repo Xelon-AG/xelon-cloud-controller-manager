@@ -7,6 +7,7 @@ IMAGE_NAME := xelonag/xelon-cloud-controller-manager
 BUILD_DIR := build
 TOOLS_DIR := $(shell pwd)/tools
 TOOLS_BIN_DIR := ${TOOLS_DIR}/bin
+VERSION ?= $(shell git describe --always)
 
 
 ## tools: Install required tooling.
@@ -46,11 +47,18 @@ test:
 	@go test -count=1 -v -cover -coverprofile=$(BUILD_DIR)/coverage.out -parallel=4 ./...
 
 
-## build-docker: Build docker dev image with included binary.
-.PHONE: build-docker
-build-docker: build
+## build-docker-dev: Build docker dev image with included binary.
+.PHONE: build-docker-dev
+build-docker-dev: build
 	@echo "==> Building docker image $(IMAGE_NAME):dev..."
-	@docker build -f Dockerfile.dev -t $(IMAGE_NAME):dev .
+	@docker build  --build-arg VERSION=$(VERSION) --tag $(IMAGE_NAME):dev --file Dockerfile build
+
+
+## release-docker-dev: Release development docker image.
+.PHONE: release-docker-dev
+release-docker-dev: build-docker-dev
+	@echo "==> Releasing development docker image $(IMAGE_NAME):dev..."
+	@docker push $(IMAGE_NAME):dev
 
 
 help: Makefile
