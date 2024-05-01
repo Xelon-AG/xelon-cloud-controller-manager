@@ -3,7 +3,7 @@ module github.com/Xelon-AG/xelon-cloud-controller-manager
 go 1.22
 
 require (
-	github.com/Xelon-AG/xelon-sdk-go v0.13.0
+	github.com/Xelon-AG/xelon-sdk-go v0.13.1
 	k8s.io/api v0.28.9
 	k8s.io/apimachinery v0.28.9
 	k8s.io/cloud-provider v0.28.9
