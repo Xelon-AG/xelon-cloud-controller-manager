@@ -43,10 +43,12 @@ github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/Xelon-AG/xelon-sdk-go v0.13.0 h1:YGgpETUKpEco/NtJOPBhi7uW96gd8hE2C8QsWZHoNe8=
-github.com/Xelon-AG/xelon-sdk-go v0.13.0/go.mod h1:hc1DgVNBbWJPn0GK+HIiNv4npvPsFLY5wMiD//f6/OE=
 github.com/Xelon-AG/xelon-sdk-go v0.13.1 h1:f43S/yk+JTGslKOg+/UuS7EMvWro9/CBFpsR4k9FQyM=
 github.com/Xelon-AG/xelon-sdk-go v0.13.1/go.mod h1:hc1DgVNBbWJPn0GK+HIiNv4npvPsFLY5wMiD//f6/OE=
+github.com/Xelon-AG/xelon-sdk-go v0.13.2 h1:h96Bc//da7kiGw2OJfWkMP8JAi+rnW2Yh1d085Wl1+U=
+github.com/Xelon-AG/xelon-sdk-go v0.13.2/go.mod h1:hc1DgVNBbWJPn0GK+HIiNv4npvPsFLY5wMiD//f6/OE=
+github.com/Xelon-AG/xelon-sdk-go v0.13.3 h1:GfF0qXHI+gQa9tpSZk3nb1SGYDwlzcmafGksE0IfYZo=
+github.com/Xelon-AG/xelon-sdk-go v0.13.3/go.mod h1:hc1DgVNBbWJPn0GK+HIiNv4npvPsFLY5wMiD//f6/OE=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df h1:7RFfzj4SSt6nnvCPbCqijJi1nWCd+TqAT3bYCStRC18=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df/go.mod h1:pSwJ0fSY5KhvocuWSx4fz3BA8OrA1bQn+K1Eli3BRwM=

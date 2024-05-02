@@ -5,43 +5,92 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
+	apierrors "k8s.io/cloud-provider/api"
 	"k8s.io/klog/v2"
 
 	"github.com/Xelon-AG/xelon-sdk-go/xelon"
 )
 
 const (
-	annotationXelonLoadBalancerID = "kubernetes.xelon.ch/load-balancer-id"
+	xelonLoadBalancerClusterStatusActive           = "Active"
+	xelonLoadBalancerClusterStatusProvisioning     = "Provisioning"
+	xelonLoadBalancerClusterVirtualIPStateReserved = "reserved"
 
-	annotationXelonLoadBalancerName = "service.beta.kubernetes.io/xelon-loadbalancer-name"
+	// serviceAnnotationLoadBalancerClusterID is the annotation used on the service
+	// to identify Xelon load balancer cluster. Read-only.
+	serviceAnnotationLoadBalancerClusterID = "kubernetes.xelon.ch/load-balancer-cluster-id"
+
+	// serviceAnnotationLoadBalancerClusterName is the annotation used on the service
+	// to identify Xelon load balancer cluster name. Read-only.
+	// serviceAnnotationLoadBalancerClusterName = "kubernetes.xelon.ch/load-balancer-cluster-name"
+
+	// serviceAnnotationLoadBalancerClusterVirtualIPID is the annotation used on the service
+	// to identify Xelon load balancer cluster virtual IP. Read-only.
+	serviceAnnotationLoadBalancerClusterVirtualIPID = "kubernetes.xelon.ch/load-balancer-cluster-virtual-ip-id"
+
+	// serviceAnnotationLoadBalancerClusterForwardingRuleIDs is the annotation used on the service
+	// to identify frontend forwarding rules for the virtual IP. Comma-separated, read-only.
+	serviceAnnotationLoadBalancerClusterForwardingRuleIDs = "kubernetes.xelon.ch/load-balancer-cluster-forwarding-rule-ids"
+
+	// serviceAnnotationLoadBalancerClusterCreatingEnabled is the annotation
+	// used on the service to allow creation of new load balancer clusters.
+	// serviceAnnotationLoadBalancerClusterCreatingEnabled = "service.beta.kubernetes.io/xelon-load-balancer-cluster-creating-enabled"
 )
 
-var errLoadBalancerNotFound = errors.New("loadbalancer not found")
+var (
+	errLoadBalancerNotFound             = errors.New("load balancer not found")
+	errLoadBalancerProvisioning         = errors.New("load balancer is being provisioned")
+	errLoadBalancerNoVirtualIPAvailable = errors.New("load balancer cluster virtual ip is not available")
+
+	_ cloudprovider.LoadBalancer = &loadBalancers{}
+)
 
 type loadBalancers struct {
-	// k8sClient kubernetes.Interface
+	client *clients
 
-	client    *xelon.Client
 	tenantID  string
 	cloudID   string
 	clusterID string
+
+	*sync.RWMutex
 }
 
-func newLoadBalancers(client *xelon.Client, tenantID, cloudID, clusterID string) cloudprovider.LoadBalancer {
+// xelonLoadBalancer represents an abstraction to map cloudprovider.LoadBalancer
+// and Xelon specific objects: load balancer cluster and virtual IP.
+//   - cluster contains two (or more) virtual ip addresses
+//   - valid cluster should be in "Active" status
+//   - virtual ip address should have "free" state
+//   - virtual ip addresses may be shared across different services (if services exposes different ports)
+type xelonLoadBalancer struct {
+	clusterID        string
+	virtualIPID      string
+	virtualIPAddress string
+	forwardingRules  []xelon.LoadBalancerClusterForwardingRule
+}
+
+func newLoadBalancers(clients *clients, tenantID, cloudID, clusterID string) cloudprovider.LoadBalancer {
 	return &loadBalancers{
-		client:    client,
+		client:    clients,
 		tenantID:  tenantID,
 		cloudID:   cloudID,
 		clusterID: clusterID,
+
+		RWMutex: &sync.RWMutex{},
 	}
 }
 
-func (l *loadBalancers) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (status *v1.LoadBalancerStatus, exists bool, err error) {
-	lb, err := l.retrieveAndAnnotateLoadBalancer(ctx, service)
+func (l *loadBalancers) GetLoadBalancer(ctx context.Context, _ string, service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
+	logger := configureLogger(ctx, "GetLoadBalancer")
+
+	xlb, err := l.retrieveXelonLoadBalancer(ctx, service)
 	if err != nil {
 		if errors.Is(err, errLoadBalancerNotFound) {
 			return nil, false, nil
@@ -49,176 +98,348 @@ func (l *loadBalancers) GetLoadBalancer(ctx context.Context, _ string, service *
 		return nil, false, err
 	}
 
+	logger.WithValues("ip_address", xlb.virtualIPAddress).Info("Load balancer virtual IP address")
+
 	return &v1.LoadBalancerStatus{
-		Ingress: []v1.LoadBalancerIngress{
-			{
-				IP: lb.IP,
-			},
-		},
+		Ingress: []v1.LoadBalancerIngress{{
+			IP: xlb.virtualIPAddress,
+		}},
 	}, true, nil
 }
 
 func (l *loadBalancers) GetLoadBalancerName(_ context.Context, _ string, service *v1.Service) string {
-	return getLoadBalancerName(service, l.clusterID)
+	return cloudprovider.DefaultLoadBalancerName(service)
 }
 
-func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
-	lbRequest, err := l.buildCreateLoadBalancerRequest(ctx, service, nodes)
+func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, _ []*v1.Node) (*v1.LoadBalancerStatus, error) {
+	logger := klog.FromContext(ctx).WithValues("method", "EnsureLoadBalancer", "service", getServiceNameWithNamespace(service))
+
+	l.Lock()
+	defer l.Unlock()
+
+	xlb, err := l.retrieveXelonLoadBalancer(ctx, service)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build load balancer request: %s", err)
+		switch {
+		case errors.Is(err, errLoadBalancerNotFound):
+			logger.Info("create case does not supported yet")
+			return nil, err
+
+		case errors.Is(err, errLoadBalancerProvisioning):
+			return nil, apierrors.NewRetryError("load balancer is currently being provisioned", 30*time.Second)
+
+		default:
+			// unrecoverable error
+			return nil, err
+		}
 	}
 
-	var lb *xelon.LoadBalancer
-	lb, err = l.retrieveAndAnnotateLoadBalancer(ctx, service)
-	switch err {
-	case nil:
-		// LB existing
-		_, err := l.updateLoadBalancer(ctx, lb, service, nodes)
-		if err != nil {
-			return nil, err
-		}
-
-	case errLoadBalancerNotFound:
-		// LB missing
-		_, _, err := l.client.LoadBalancers.Create(ctx, l.tenantID, lbRequest)
-		logLBInfo("CREATE", lbRequest, 2)
-		if err != nil {
-			return nil, err
-		}
-		lbs, _, err := l.client.LoadBalancers.List(ctx, l.tenantID)
-		if err != nil {
-			return nil, err
-		}
-		for _, v := range lbs {
-			if v.Name == lbRequest.Name {
-				lb = &v
-			}
-		}
-
-		if lb != nil {
-			updateServiceAnnotation(service, annotationXelonLoadBalancerID, lb.LocalID)
-		}
-
-	default:
-		// unrecoverable LB retrieval error
+	err = l.updateLoadBalancer(ctx, xlb, service)
+	if err != nil {
 		return nil, err
-	}
-
-	if lb == nil {
-		return nil, fmt.Errorf("load-balancer is still not found")
-	}
-
-	if lb.Health != "green" {
-		return nil, fmt.Errorf("load-balancer is not yet active (current status: %s)", lb.Health)
 	}
 
 	return &v1.LoadBalancerStatus{
-		Ingress: []v1.LoadBalancerIngress{
-			{
-				IP: lb.IP,
-			},
-		},
+		Ingress: []v1.LoadBalancerIngress{{
+			IP: xlb.virtualIPAddress,
+		}},
 	}, nil
 }
 
-func (l *loadBalancers) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
-	lb, err := l.retrieveAndAnnotateLoadBalancer(ctx, service)
+func (l *loadBalancers) UpdateLoadBalancer(ctx context.Context, _ string, service *v1.Service, _ []*v1.Node) error {
+	xlb, err := l.retrieveXelonLoadBalancer(ctx, service)
 	if err != nil {
 		return err
 	}
-	_, err = l.updateLoadBalancer(ctx, lb, service, nodes)
-	return err
+
+	err = l.updateLoadBalancer(ctx, xlb, service)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error {
-	lb, err := l.retrieveLoadBalancer(ctx, service)
+func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, _ string, service *v1.Service) error {
+	logger := configureLogger(ctx, "EnsureLoadBalancerDeleted")
+
+	xlb, err := l.retrieveXelonLoadBalancer(ctx, service)
 	if err != nil {
-		if err == errLoadBalancerNotFound {
-			return nil
-		}
 		return err
 	}
 
-	resp, err := l.client.LoadBalancers.Delete(ctx, l.tenantID, lb.LocalID)
+	if xlb == nil {
+		logger.Info("xelonLoadBalancer is empty, no rules delete needed")
+		return nil
+	}
+	if xlb.forwardingRules == nil {
+		logger.Info("no forwarding rules defined, no rules delete needed")
+		return nil
+	}
+
+	var frontendRules []xelon.LoadBalancerClusterForwardingRuleConfiguration
+	for _, forwardingRule := range xlb.forwardingRules {
+		if forwardingRule.Frontend != nil {
+			frontendRules = append(frontendRules, *forwardingRule.Frontend)
+		}
+	}
+	logger.WithValues("frontend_rules", frontendRules).Info("Following rules will be deleted")
+	for _, frontendRule := range frontendRules {
+		_, err := l.client.xelon.LoadBalancerClusters.DeleteForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, frontendRule.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *loadBalancers) retrieveXelonLoadBalancer(ctx context.Context, service *v1.Service) (xlb *xelonLoadBalancer, err error) {
+	logger := configureLogger(ctx, "retrieveXelonLoadBalancer").WithValues(
+		"service", getServiceNameWithNamespace(service),
+	)
+	patcher := newServicePatcher(l.client.k8s, service)
+	defer func() { err = patcher.Patch(ctx) }()
+
+	xlb = &xelonLoadBalancer{}
+
+	// fetch all needed information about Xelon load balancer cluster
+	if id, ok := service.Annotations[serviceAnnotationLoadBalancerClusterID]; ok && id != "" {
+		logger.Info("Load balancer cluster id is specified", "id", id)
+
+		loadBalancerCluster, err := l.fetchXelonLoadBalancerCluster(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		if loadBalancerCluster.Status == xelonLoadBalancerClusterStatusProvisioning {
+			// special case for clusters in provisioning state, so EnsureLoadBalancer method can use retry error
+			return nil, errLoadBalancerProvisioning
+		}
+		if loadBalancerCluster.Status != xelonLoadBalancerClusterStatusActive {
+			return nil, fmt.Errorf("load balancer cluster is not active (current status: %v)", loadBalancerCluster.Status)
+		}
+
+		xlb.clusterID = loadBalancerCluster.ID
+	} else {
+		logger.Info("Load balancer cluster id is not specified, searching for a cluster that can be used for the service")
+
+		loadBalancerCluster, err := l.findOrCreateXelonLoadBalancerCluster(ctx, service)
+		if err != nil {
+			return nil, err
+		}
+
+		if loadBalancerCluster.Status == xelonLoadBalancerClusterStatusProvisioning {
+			// special case for clusters in provisioning state, so EnsureLoadBalancer method can use retry error
+			return nil, errLoadBalancerProvisioning
+		}
+		if loadBalancerCluster.Status != xelonLoadBalancerClusterStatusActive {
+			return nil, fmt.Errorf("load balancer cluster is not active (current status: %v)", loadBalancerCluster.Status)
+		}
+
+		xlb.clusterID = loadBalancerCluster.ID
+		updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterID, loadBalancerCluster.ID)
+	}
+
+	// fetch all needed information about virtual IP from the load balancer cluster
+	if id, ok := service.Annotations[serviceAnnotationLoadBalancerClusterVirtualIPID]; ok && id != "" {
+		logger.Info("Load balancer cluster virtual ip is specified", "id", id)
+
+		virtualIP, err := l.fetchXelonLoadBalancerVirtualIP(ctx, xlb.clusterID, id)
+		if err != nil {
+			return nil, err
+		}
+
+		xlb.virtualIPID = virtualIP.ID
+		xlb.virtualIPAddress = virtualIP.IPAddress
+	} else {
+		logger.Info("Load balancer cluster virtual ip is not specified, searching for a virtual ip that can be used for the service")
+
+		virtualIP, err := l.findXelonLoadBalancerClusterVirtualIP(ctx, xlb.clusterID, service)
+		if err != nil {
+			return nil, err
+		}
+
+		xlb.virtualIPID = virtualIP.ID
+		xlb.virtualIPAddress = virtualIP.IPAddress
+
+		updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterVirtualIPID, virtualIP.ID)
+	}
+
+	// fetch all needed information about forwarding rules
+	if ids, ok := service.Annotations[serviceAnnotationLoadBalancerClusterForwardingRuleIDs]; ok && ids != "" {
+		logger.Info("Forwarding rules are specified", "forwarding_rules_ids", ids)
+
+		forwardingRules, err := l.fetchXelonLoadBalancerForwardingRules(ctx, xlb.clusterID, xlb.virtualIPID, ids)
+		if err != nil {
+			return nil, err
+		}
+
+		xlb.forwardingRules = forwardingRules
+	}
+
+	return xlb, nil
+}
+
+func (l *loadBalancers) fetchXelonLoadBalancerCluster(ctx context.Context, loadBalancerClusterID string) (*xelon.LoadBalancerCluster, error) {
+	logger := configureLogger(ctx, "fetchXelonLoadBalancerCluster")
+
+	loadBalancerCluster, resp, err := l.client.xelon.LoadBalancerClusters.Get(ctx, loadBalancerClusterID)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil
+			logger.Info("Load balancer cluster does not exist", "id", loadBalancerClusterID)
+			return nil, errLoadBalancerNotFound
 		}
-		return fmt.Errorf("failed to delete load balancer: %s", err)
-	}
-
-	return nil
-}
-
-func (l *loadBalancers) retrieveAndAnnotateLoadBalancer(ctx context.Context, service *v1.Service) (*xelon.LoadBalancer, error) {
-	lb, err := l.retrieveLoadBalancer(ctx, service)
-	if err != nil {
-		// Return bare error to easily compare for errLBNotFound. Converting to
-		// a full error type doesn't seem worth it.
 		return nil, err
 	}
 
-	updateServiceAnnotation(service, annotationXelonLoadBalancerID, lb.LocalID)
+	logger.Info("Load balancer cluster exists", "id", loadBalancerCluster.ID, "name", loadBalancerCluster.Name)
 
-	return lb, nil
+	return loadBalancerCluster, nil
 }
 
-func (l *loadBalancers) retrieveLoadBalancer(ctx context.Context, service *v1.Service) (*xelon.LoadBalancer, error) {
-	allLBs, err := l.getLoadBalancers(ctx)
+func (l *loadBalancers) findOrCreateXelonLoadBalancerCluster(ctx context.Context, service *v1.Service) (*xelon.LoadBalancerCluster, error) {
+	logger := configureLogger(ctx, "findOrCreateXelonLoadBalancerCluster").WithValues(
+		"service", getServiceNameWithNamespace(service),
+	)
+
+	loadBalancerClusters, _, err := l.client.xelon.LoadBalancerClusters.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	lb := findLoadBalancerByName(service, allLBs, l.clusterID)
-	if lb == nil {
-		return nil, errLoadBalancerNotFound
-	}
+	var cluster *xelon.LoadBalancerCluster
+	logger.Info("Searching for load balancer cluster", "kubernetes_cluster_id", l.clusterID)
+	for _, loadBalancerCluster := range loadBalancerClusters {
+		if loadBalancerCluster.KubernetesClusterID == l.clusterID {
+			logger.Info("Found load balancer cluster", "id", loadBalancerCluster.ID, "name", loadBalancerCluster.Name)
 
-	return lb, nil
-}
-
-func (l *loadBalancers) getLoadBalancers(ctx context.Context) ([]xelon.LoadBalancer, error) {
-	logLBInfo("getLoadBalancers", "running LB list", 2)
-	lbs, _, err := l.client.LoadBalancers.List(ctx, l.tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return lbs, nil
-}
-
-func findLoadBalancerByName(service *v1.Service, allLBs []xelon.LoadBalancer, clusterID string) *xelon.LoadBalancer {
-	customName := getLoadBalancerName(service, clusterID)
-	legacyName := getLoadBalancerLegacyName(service)
-	candidates := []string{customName}
-	if legacyName != customName {
-		candidates = append(candidates, legacyName)
-	}
-
-	klog.V(2).Infof("Looking up load-balancer for service %s/%s by name (candidates: %s)", service.Namespace, service.Name, strings.Join(candidates, ", "))
-
-	for _, lb := range allLBs {
-		for _, candidate := range candidates {
-			if lb.Name == candidate {
-				return &lb
+			// skip non-active load balancer clusters
+			if loadBalancerCluster.Status != xelonLoadBalancerClusterStatusActive {
+				continue
 			}
+
+			_, err := l.findXelonLoadBalancerClusterVirtualIP(ctx, loadBalancerCluster.ID, service)
+			if err != nil {
+				if errors.Is(err, errLoadBalancerNoVirtualIPAvailable) {
+					logger.Info("No virtual ip available")
+					continue
+				}
+				return nil, err
+			}
+			cluster = &loadBalancerCluster
+			break
 		}
 	}
 
-	return nil
+	if cluster == nil {
+		// create case is not supported yet
+		logger.Info("Creating new load balancer cluster is not supported yet")
+		return nil, errors.New("creating new load balancer cluster is not supported")
+	} else {
+		return cluster, nil
+	}
 }
 
-func getLoadBalancerName(service *v1.Service, clusterID string) string {
-	lbNameFromAnnotation := service.Annotations[annotationXelonLoadBalancerName]
-	if lbNameFromAnnotation == "" {
-		lbNameFromAnnotation = getLoadBalancerLegacyName(service)
+func (l *loadBalancers) fetchXelonLoadBalancerVirtualIP(ctx context.Context, loadbalancerClusterID, virtualIPID string) (*xelon.LoadBalancerClusterVirtualIP, error) {
+	logger := configureLogger(ctx, "fetchXelonLoadBalancerVirtualIP")
+
+	virtualIP, resp, err := l.client.xelon.LoadBalancerClusters.GetVirtualIP(ctx, loadbalancerClusterID, virtualIPID)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			logger.Info("Load balancer cluster virtual ip does not exist", "id", virtualIPID)
+			return nil, errLoadBalancerNotFound
+		}
+		return nil, err
 	}
 
-	name := fmt.Sprintf("lb-%v-%v", clusterID, lbNameFromAnnotation)
-	return name
+	logger.Info("Load balancer cluster virtual ip exists", "id", virtualIP.ID, "address", virtualIP.IPAddress)
+
+	return virtualIP, nil
 }
 
-func getLoadBalancerLegacyName(service *v1.Service) string {
-	return cloudprovider.DefaultLoadBalancerName(service)
+func (l *loadBalancers) findXelonLoadBalancerClusterVirtualIP(ctx context.Context, loadBalancerClusterID string, service *v1.Service) (*xelon.LoadBalancerClusterVirtualIP, error) {
+	logger := configureLogger(ctx, "findXelonLoadBalancerClusterVirtualIP").WithValues(
+		"service", getServiceNameWithNamespace(service),
+	)
+
+	virtualIPs, _, err := l.client.xelon.LoadBalancerClusters.ListVirtualIPs(ctx, loadBalancerClusterID)
+	if err != nil {
+		return nil, err
+	}
+	for _, virtualIP := range virtualIPs {
+		forwardingRules, _, err := l.client.xelon.LoadBalancerClusters.ListForwardingRules(ctx, loadBalancerClusterID, virtualIP.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		if isVirtualIPAvailable(&virtualIP, forwardingRules, service) {
+			logger.Info("Found available virtual IP", "id", virtualIP.ID, "address", virtualIP.IPAddress)
+			return &virtualIP, nil
+		}
+	}
+
+	return nil, errLoadBalancerNoVirtualIPAvailable
+}
+
+func (l *loadBalancers) fetchXelonLoadBalancerForwardingRules(ctx context.Context, loadbalancerClusterID, virtualIPID, forwardingRuleIDs string) ([]xelon.LoadBalancerClusterForwardingRule, error) {
+	logger := configureLogger(ctx, "fetchXelonLoadBalancerForwardingRules")
+
+	definedForwardingRuleIDs := strings.Split(forwardingRuleIDs, ",")
+
+	forwardingRules, _, err := l.client.xelon.LoadBalancerClusters.ListForwardingRules(ctx, loadbalancerClusterID, virtualIPID)
+	if err != nil {
+		return nil, err
+	}
+
+	var ff []xelon.LoadBalancerClusterForwardingRule
+	for _, forwardingRule := range forwardingRules {
+		if forwardingRule.Frontend == nil {
+			continue
+		}
+		if slices.Contains(definedForwardingRuleIDs, forwardingRule.Frontend.ID) {
+			logger.WithValues(
+				"rule_ids", definedForwardingRuleIDs, "id", forwardingRule.Frontend.ID,
+			).Info("Found match for frontend forwarding rule")
+			ff = append(ff, forwardingRule)
+		}
+	}
+
+	return ff, nil
+}
+
+func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBalancer, service *v1.Service) error {
+	logger := configureLogger(ctx, "retrieveXelonLoadBalancer").WithValues(
+		"service", getServiceNameWithNamespace(service),
+	)
+	patcher := newServicePatcher(l.client.k8s, service)
+	defer func() { _ = patcher.Patch(ctx) }()
+
+	// build forwarding rules
+	logger.Info("Building forwarding rules request")
+	var forwardingRules []xelon.LoadBalancerClusterForwardingRule
+	for _, port := range service.Spec.Ports {
+		forwardingRule := xelon.LoadBalancerClusterForwardingRule{
+			Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: int(port.NodePort)},
+			Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: int(port.Port)},
+		}
+		forwardingRules = append(forwardingRules, forwardingRule)
+	}
+
+	rules, _, err := l.client.xelon.LoadBalancerClusters.CreateForwardingRules(ctx, xlb.clusterID, xlb.virtualIPID, forwardingRules)
+	if err != nil {
+		return err
+	}
+
+	var frontendRules []string
+	for _, rule := range rules {
+		if rule.Frontend != nil {
+			frontendRules = append(frontendRules, rule.Frontend.ID)
+		}
+	}
+
+	updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterForwardingRuleIDs, strings.Join(frontendRules, ","))
+
+	return nil
 }
 
 func updateServiceAnnotation(service *v1.Service, annotationName, annotationValue string) {
@@ -228,101 +449,39 @@ func updateServiceAnnotation(service *v1.Service, annotationName, annotationValu
 	service.ObjectMeta.Annotations[annotationName] = annotationValue
 }
 
-// buildCreateLoadBalancerRequest returns a *xelon.LoadBalancerCreateRequest to balance requests for service across nodes.
-func (l *loadBalancers) buildCreateLoadBalancerRequest(ctx context.Context, service *v1.Service, nodes []*v1.Node) (*xelon.LoadBalancerCreateRequest, error) {
-	lbName := getLoadBalancerName(service, l.clusterID)
-
-	forwardingRules, err := buildForwardingRules(service, nodes)
-	if err != nil {
-		return nil, err
+func isVirtualIPAvailable(virtualIP *xelon.LoadBalancerClusterVirtualIP, forwardingRules []xelon.LoadBalancerClusterForwardingRule, service *v1.Service) bool {
+	if service == nil {
+		return false
+	}
+	if virtualIP == nil {
+		return false
+	}
+	if virtualIP.State == xelonLoadBalancerClusterVirtualIPStateReserved {
+		return false
 	}
 
-	return &xelon.LoadBalancerCreateRequest{
-		ForwardingRules: forwardingRules,
-		CloudID:         l.cloudID,
-		Name:            lbName,
-		Type:            1,
-		ServerID:        []string{l.clusterID},
-	}, nil
-}
-
-// buildUpdateLoadBalancerRequest returns a *xelon.LoadBalancerUpdateForwardingRulesRequest to balance requests for service across nodes.
-func (l *loadBalancers) buildUpdateLoadBalancerRequest(ctx context.Context, service *v1.Service, nodes []*v1.Node) (*xelon.LoadBalancerUpdateForwardingRulesRequest, error) {
-	forwardingRules, err := buildForwardingRules(service, nodes)
-	if err != nil {
-		return nil, err
-	}
-
-	return &xelon.LoadBalancerUpdateForwardingRulesRequest{
-		ForwardingRules: forwardingRules,
-	}, nil
-}
-
-// buildForwardingRules returns the forwarding rules of the Load Balancer of service.
-func buildForwardingRules(service *v1.Service, nodes []*v1.Node) ([]xelon.LoadBalancerForwardingRule, error) {
-	var forwardingRules []xelon.LoadBalancerForwardingRule
-
-	for _, port := range service.Spec.Ports {
-		for _, node := range nodes {
-			nodeInternalIP := getNodeInternalIP(node)
-			forwardingRule, err := buildForwardingRule(&port, nodeInternalIP)
-			if err != nil {
-				return nil, err
-			}
-			forwardingRules = append(forwardingRules, *forwardingRule)
+	// combine all frontend ports, so we can check it later
+	var frontedPorts []int32
+	for _, forwardingRule := range forwardingRules {
+		if forwardingRule.Frontend != nil {
+			frontedPorts = append(frontedPorts, int32(forwardingRule.Frontend.Port))
 		}
 	}
 
-	return forwardingRules, nil
-}
-
-func buildForwardingRule(port *v1.ServicePort, nodeIP string) (*xelon.LoadBalancerForwardingRule, error) {
-	var forwardingRule xelon.LoadBalancerForwardingRule
-
-	forwardingRule.IP = []string{nodeIP}
-	forwardingRule.Ports = []int{int(port.Port), int(port.NodePort)}
-
-	return &forwardingRule, nil
-}
-
-func (l *loadBalancers) updateLoadBalancer(ctx context.Context, lb *xelon.LoadBalancer, service *v1.Service, nodes []*v1.Node) (*xelon.LoadBalancer, error) {
-	// call buildCreateLoadBalancerRequest for its error checking; we have to call it
-	// again just before actually updating the loadbalancer in case
-	// checkAndUpdateLBAndServiceCerts modifies the service
-	_, err := l.buildCreateLoadBalancerRequest(ctx, service, nodes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build load-balancer request: %s", err)
-	}
-
-	lbRequest, err := l.buildUpdateLoadBalancerRequest(ctx, service, nodes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build load-balancer request (post-certificate update): %s", err)
-	}
-
-	lbID := lb.LocalID
-	_, _, err = l.client.LoadBalancers.UpdateForwardingRules(ctx, l.tenantID, lbID, lbRequest)
-	if err != nil {
-		logLBInfo("UPDATE", lbRequest, 2)
-		return nil, fmt.Errorf("failed to update load-balancer with ID %s: %s", lbID, err)
-	}
-	logLBInfo("UPDATE", lbRequest, 2)
-
-	return lb, nil
-}
-
-func getNodeInternalIP(node *v1.Node) string {
-	for _, addr := range node.Status.Addresses {
-		logLBInfo("getNodeInternalIP", addr, 2)
-		if addr.Type == v1.NodeInternalIP {
-			return addr.Address
+	// check if service's ports are already configured in forwarding rules
+	for _, servicePort := range service.Spec.Ports {
+		if slices.Contains(frontedPorts, servicePort.Port) {
+			return false
 		}
 	}
-	return ""
+
+	return true
 }
 
-// logLBInfo wraps around klog and logs LB operation type and LB configuration info.
-func logLBInfo(opType string, cfgInfo interface{}, logLevel klog.Level) {
-	if cfgInfo != nil {
-		klog.V(logLevel).Infof("Operation type: %v, Configuration info: %v", opType, cfgInfo)
-	}
+func configureLogger(ctx context.Context, methodName string) logr.Logger {
+	return klog.FromContext(ctx).V(2).WithValues("method", methodName)
+}
+
+func getServiceNameWithNamespace(service *v1.Service) string {
+	return fmt.Sprintf("%v/%v", service.Namespace, service.Name)
 }

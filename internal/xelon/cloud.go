@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
@@ -15,16 +16,21 @@ import (
 const (
 	ProviderName string = "xelon"
 
-	xelonAPIURLEnv    string = "XELON_API_URL"
-	xelonClientIDEnv  string = "XELON_CLIENT_ID"
-	xelonCloudIDEnv   string = "XELON_CLOUD_ID"
-	xelonClusterIDEnv string = "XELON_CLUSTER_ID"
-	xelonTokenEnv     string = "XELON_TOKEN"
+	xelonAPIURLEnv              string = "XELON_API_URL"
+	xelonClientIDEnv            string = "XELON_CLIENT_ID"
+	xelonCloudIDEnv             string = "XELON_CLOUD_ID"
+	xelonKubernetesClusterIDEnv string = "XELON_KUBERNETES_CLUSTER_ID"
+	xelonTokenEnv               string = "XELON_TOKEN"
 )
 
+type clients struct {
+	k8s   kubernetes.Interface
+	xelon *xelon.Client
+}
+
 type cloud struct {
-	client        *xelon.Client
-	loadbalancers cloudprovider.LoadBalancer
+	clients       *clients
+	loadBalancers cloudprovider.LoadBalancer
 }
 
 func init() {
@@ -41,12 +47,12 @@ func newCloud() (cloudprovider.Interface, error) {
 
 	cloudID := os.Getenv(xelonCloudIDEnv)
 	if cloudID == "" {
-		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
+		return nil, fmt.Errorf("environment variable %q is required", xelonCloudIDEnv)
 	}
 
-	clusterID := os.Getenv(xelonClusterIDEnv)
+	clusterID := os.Getenv(xelonKubernetesClusterIDEnv)
 	if clusterID == "" {
-		return nil, fmt.Errorf("environment variable %q is required", xelonClusterIDEnv)
+		return nil, fmt.Errorf("environment variable %q is required", xelonKubernetesClusterIDEnv)
 	}
 
 	userAgent := "xelon-cloud-controller-manager"
@@ -68,17 +74,21 @@ func newCloud() (cloudprovider.Interface, error) {
 		return nil, err
 	}
 
+	clients := &clients{xelon: xelonClient}
+
 	return &cloud{
-		client:        xelonClient,
-		loadbalancers: newLoadBalancers(xelonClient, tenant.TenantID, cloudID, clusterID),
+		clients:       clients,
+		loadBalancers: newLoadBalancers(clients, tenant.TenantID, cloudID, clusterID),
 	}, nil
 }
 
-func (c *cloud) Initialize(_ cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {
+func (c *cloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {
+	config := clientBuilder.ConfigOrDie("xelon-cloud-controller-manager")
+	c.clients.k8s = kubernetes.NewForConfigOrDie(config)
 }
 
 func (c *cloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	return c.loadbalancers, true
+	return c.loadBalancers, true
 }
 
 func (c *cloud) Instances() (cloudprovider.Instances, bool) {
