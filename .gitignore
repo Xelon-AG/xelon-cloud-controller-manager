@@ -6,7 +6,7 @@ build/
 #################################
 # Secret files                  #
 #################################
-secret.yml
+/releases/dev/secret.yaml
 
 #################################
 # Golang files                  #

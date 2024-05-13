@@ -36,7 +36,7 @@ lint:
 build:
 	@echo "==> Building binary..."
 	@echo "    running go build for GOOS=linux GOARCH=amd64"
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) cmd/main.go
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) cmd/xelon-cloud-controller-manager/main.go
 
 
 ## test: Run all unit tests.
@@ -51,7 +51,7 @@ test:
 .PHONE: build-docker-dev
 build-docker-dev: build
 	@echo "==> Building docker image $(IMAGE_NAME):dev..."
-	@docker build  --build-arg VERSION=$(VERSION) --tag $(IMAGE_NAME):dev --file Dockerfile build
+	@docker build  --platform=linux/amd64 --build-arg VERSION=$(VERSION) --tag $(IMAGE_NAME):dev --file Dockerfile .
 
 
 ## release-docker-dev: Release development docker image.

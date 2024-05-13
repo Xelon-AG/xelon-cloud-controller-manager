@@ -1,5 +1,6 @@
-# Ignore everything
-**
-
-## Except build folder
-!/build/**
+.github/
+build/
+test/
+tools/
+README.md
+.golangci.yaml
