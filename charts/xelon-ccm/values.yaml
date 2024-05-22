@@ -1,0 +1,17 @@
+image:
+  repository: xelonag/xelon-cloud-controller-manager
+  tag: "dev"
+  pullPolicy: Always
+
+replicaCount: 1
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+xelon:
+  baseUrl: "https://vdc.xelon.ch/api/service/"
+  clientId: ""
+  cloudId: ""
+  kubernetesClusterId: ""
+  token: ""
