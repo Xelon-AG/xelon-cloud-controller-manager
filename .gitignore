@@ -4,9 +4,9 @@
 build/
 
 #################################
-# Secret files                  #
+# Helm files                    #
 #################################
-/releases/dev/secret.yaml
+/charts/xelon-ccm/values-dev.yaml
 
 #################################
 # Golang files                  #

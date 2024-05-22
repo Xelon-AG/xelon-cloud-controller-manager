@@ -16,7 +16,7 @@ import (
 const (
 	ProviderName string = "xelon"
 
-	xelonAPIURLEnv              string = "XELON_API_URL"
+	xelonBaseURLEnv             string = "XELON_BASE_URL"
 	xelonClientIDEnv            string = "XELON_CLIENT_ID"
 	xelonCloudIDEnv             string = "XELON_CLOUD_ID"
 	xelonKubernetesClusterIDEnv string = "XELON_KUBERNETES_CLUSTER_ID"
@@ -57,7 +57,7 @@ func newCloud() (cloudprovider.Interface, error) {
 
 	userAgent := "xelon-cloud-controller-manager"
 	opts := []xelon.ClientOption{xelon.WithUserAgent(userAgent)}
-	if apiURL := os.Getenv(xelonAPIURLEnv); apiURL != "" {
+	if apiURL := os.Getenv(xelonBaseURLEnv); apiURL != "" {
 		opts = append(opts, xelon.WithBaseURL(apiURL))
 	}
 	if clientID := os.Getenv(xelonClientIDEnv); clientID != "" {

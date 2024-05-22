@@ -57,7 +57,7 @@ func cloudInitializer(c *config.CompletedConfig) cloudprovider.Interface {
 	cloudConfig := c.ComponentConfig.KubeCloudShared.CloudProvider
 	cloud, err := cloudprovider.InitCloudProvider(cloudConfig.Name, cloudConfig.CloudConfigFile)
 	if err != nil {
-		klog.Errorf("failed to initizlize cloud provider: %v", err)
+		klog.Errorf("failed to initialize cloud provider: %v", err)
 		os.Exit(1)
 	}
 	if cloud == nil {
