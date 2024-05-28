@@ -43,27 +43,27 @@ spec:
             - name: XELON_BASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: baseUrl
             - name: XELON_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: clientId
             - name: XELON_CLOUD_ID
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: cloudId
             - name: XELON_KUBERNETES_CLUSTER_ID
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: kubernetesClusterId
             - name: XELON_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: token
           resources:
             requests:
