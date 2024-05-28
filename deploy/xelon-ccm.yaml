@@ -6,20 +6,6 @@ metadata:
   name: xelon-cloud-controller-manager
   namespace: kube-system
 ---
-# Source: xelon-cloud-controller-manager/templates/secret.yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: xelon-ccm-credentials
-  namespace: kube-system
-type: Opaque
-stringData:
-  baseUrl: "INSERT_XELON_BASE_URL_HERE"
-  clientId: "INSERT_XELON_CLIENT_ID_HERE"
-  cloudId: "INSERT_XELON_CLOUD_ID_HERE"
-  kubernetesClusterId: "INSERT_XELON_KUBERNETES_CLUSTER_ID_HERE"
-  token: "INSERT_XELON_TOKEN_HERE"
----
 # Source: xelon-cloud-controller-manager/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -119,27 +105,27 @@ spec:
             - name: XELON_BASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: baseUrl
             - name: XELON_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: clientId
             - name: XELON_CLOUD_ID
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: cloudId
             - name: XELON_KUBERNETES_CLUSTER_ID
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: kubernetesClusterId
             - name: XELON_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: xelon-ccm-credentials
+                  name: xelon-api-credentials
                   key: token
           resources:
             requests:

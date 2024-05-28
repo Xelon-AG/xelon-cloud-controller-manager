@@ -9,8 +9,9 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-xelon:
-  baseUrl: "https://vdc.xelon.ch/api/service/"
+xelonSecret:
+  create: false
+  baseUrl: "https://hq.xelon.ch/api/service/"
   clientId: ""
   cloudId: ""
   kubernetesClusterId: ""
