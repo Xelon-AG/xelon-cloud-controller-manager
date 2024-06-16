@@ -1,13 +1,14 @@
-image:
-  repository: xelonag/xelon-cloud-controller-manager
-  tag: "dev"
-  pullPolicy: Always
-
-replicaCount: 1
-
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
+
+image:
+  repository: xelonag/xelon-cloud-controller-manager
+  tag: "latest"
+  pullPolicy: Always
+
+logLevel: 2
+
+replicaCount: 1
 
 xelonSecret:
   create: false
