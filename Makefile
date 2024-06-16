@@ -1,13 +1,25 @@
 # Project variables
 PROJECT_NAME := xelon-cloud-controller-manager
-IMAGE_NAME := xelonag/xelon-cloud-controller-manager
+IMAGE_NAME ?= xelonag/xelon-cloud-controller-manager
 
 # Build variables
 .DEFAULT_GOAL = test
 BUILD_DIR := build
 TOOLS_DIR := $(shell pwd)/tools
 TOOLS_BIN_DIR := ${TOOLS_DIR}/bin
+
 VERSION ?= $(shell git describe --always)
+GIT_COMMIT ?= $(shell git rev-parse HEAD)
+ifeq ($(strip $(shell git status --porcelain 2>/dev/null)),)
+  GIT_TREE_STATE=clean
+else
+  GIT_TREE_STATE=dirty
+endif
+SOURCE_DATE_EPOCH ?= $(shell git log -1 --pretty=%ct)
+LDFLAGS ?= -X github.com/Xelon-AG/xelon-cloud-controller-manager/internal/xelon.gitCommit=${GIT_COMMIT}
+LDFLAGS := $(LDFLAGS) -X github.com/Xelon-AG/xelon-cloud-controller-manager/internal/xelon.gitTreeState=${GIT_TREE_STATE}
+LDFLAGS := $(LDFLAGS) -X github.com/Xelon-AG/xelon-cloud-controller-manager/internal/xelon.sourceDateEpoch=${SOURCE_DATE_EPOCH}
+LDFLAGS := $(LDFLAGS) -X github.com/Xelon-AG/xelon-cloud-controller-manager/internal/xelon.version=${VERSION}
 
 
 ## tools: Install required tooling.
@@ -31,14 +43,6 @@ lint:
 	@${TOOLS_BIN_DIR}/golangci-lint run
 
 
-## build: Build binary for linux/amd64 system.
-.PHONE: build
-build:
-	@echo "==> Building binary..."
-	@echo "    running go build for GOOS=linux GOARCH=amd64"
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) cmd/xelon-cloud-controller-manager/main.go
-
-
 ## test: Run all unit tests.
 .PHONY: test
 test:
@@ -47,18 +51,46 @@ test:
 	@go test -count=1 -v -cover -coverprofile=$(BUILD_DIR)/coverage.out -parallel=4 ./...
 
 
-## build-docker-dev: Build docker dev image with included binary.
-.PHONE: build-docker-dev
-build-docker-dev: build
-	@echo "==> Building docker image $(IMAGE_NAME):dev..."
-	@docker build  --platform=linux/amd64 --build-arg VERSION=$(VERSION) --tag $(IMAGE_NAME):dev --file Dockerfile .
+## build: Build binary for linux/amd64 system.
+.PHONE: build
+build:
+	@echo "==> Building binary..."
+	@echo "    running go build for GOOS=linux GOARCH=amd64"
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o $(BUILD_DIR)/$(PROJECT_NAME) cmd/xelon-cloud-controller-manager/main.go
+
+
+## build-docker: Build docker image with included binary.
+.PHONE: build-docker
+build-docker:
+	@echo "==> Building docker image $(IMAGE_NAME)..."
+	@docker build \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
+		--build-arg GIT_TREE_STATE=$(GIT_TREE_STATE) \
+		--build-arg SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH) \
+		--build-arg VERSION=$(VERSION) \
+		--tag $(IMAGE_NAME) --file Dockerfile .
 
 
 ## release-docker-dev: Release development docker image.
 .PHONE: release-docker-dev
-release-docker-dev: build-docker-dev
+release-docker-dev: build-docker
+	@echo "==> Tagging docker image $(IMAGE_NAME):dev..."
+	@docker tag $(IMAGE_NAME) $(IMAGE_NAME):dev
 	@echo "==> Releasing development docker image $(IMAGE_NAME):dev..."
 	@docker push $(IMAGE_NAME):dev
+
+
+## release-docker: Release docker image.
+.PHONE: release-docker
+release-docker: build-docker
+	@echo "==> Tagging docker image $(IMAGE_NAME):latest..."
+	@docker tag $(IMAGE_NAME) $(IMAGE_NAME):latest
+	@echo "==> Releasing docker image $(IMAGE_NAME):latest..."
+	@docker push $(IMAGE_NAME):latest
+	@echo "==> Tagging docker image $(IMAGE_NAME):$(VERSION)..."
+	@docker tag $(IMAGE_NAME) $(IMAGE_NAME):$(VERSION)
+	@echo "==> Releasing docker image $(IMAGE_NAME):$(VERSION)..."
+	@docker push $(IMAGE_NAME):$(VERSION)
 
 
 help: Makefile

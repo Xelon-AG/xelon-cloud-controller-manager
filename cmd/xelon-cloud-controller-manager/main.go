@@ -20,10 +20,6 @@ import (
 	"github.com/Xelon-AG/xelon-cloud-controller-manager/internal/xelon"
 )
 
-// var (
-// 	version = "dev"
-// )
-
 func main() {
 	rand.NewSource(time.Now().UnixNano())
 
