@@ -2,9 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: xelon-cloud-controller-manager
-  namespace: kube-system
+  namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 2
   selector:
     matchLabels:
@@ -38,7 +38,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--leader-elect=false"
-            - "--v=2"
+            - "--v={{ .Values.logLevel }}"
           env:
             - name: XELON_BASE_URL
               valueFrom:

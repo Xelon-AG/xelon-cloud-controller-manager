@@ -49,4 +49,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: xelon-cloud-controller-manager
-    namespace: kube-system
+    namespace: {{ .Release.Namespace }}
