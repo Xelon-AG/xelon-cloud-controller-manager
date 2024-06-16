@@ -40,6 +40,8 @@ func init() {
 }
 
 func newCloud() (cloudprovider.Interface, error) {
+	klog.InfoS("Cloud controller manager information", "provider", ProviderName, "version_info", GetVersionInfo())
+
 	token := os.Getenv(xelonTokenEnv)
 	if token == "" {
 		return nil, fmt.Errorf("environment variable %q is required (use k8s secret)", xelonTokenEnv)
@@ -55,8 +57,7 @@ func newCloud() (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("environment variable %q is required", xelonKubernetesClusterIDEnv)
 	}
 
-	userAgent := "xelon-cloud-controller-manager"
-	opts := []xelon.ClientOption{xelon.WithUserAgent(userAgent)}
+	opts := []xelon.ClientOption{xelon.WithUserAgent(UserAgent())}
 	if apiURL := os.Getenv(xelonBaseURLEnv); apiURL != "" {
 		opts = append(opts, xelon.WithBaseURL(apiURL))
 	}
