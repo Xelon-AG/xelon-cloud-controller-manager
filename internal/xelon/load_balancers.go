@@ -408,11 +408,24 @@ func (l *loadBalancers) fetchXelonLoadBalancerForwardingRules(ctx context.Contex
 }
 
 func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBalancer, service *v1.Service) error {
-	logger := configureLogger(ctx, "retrieveXelonLoadBalancer").WithValues(
+	logger := configureLogger(ctx, "updateLoadBalancer").WithValues(
 		"service", getServiceNameWithNamespace(service),
 	)
 	patcher := newServicePatcher(l.client.k8s, service)
 	defer func() { _ = patcher.Patch(ctx) }()
+
+	// clean up old rules
+	if forwardingRuleIDs, ok := service.Annotations[serviceAnnotationLoadBalancerClusterForwardingRuleIDs]; ok && forwardingRuleIDs != "" {
+		logger.Info("Deleting previously specified forwarding rules", "forwarding_rules_ids", forwardingRuleIDs)
+		definedForwardingRuleIDs := strings.Split(forwardingRuleIDs, ",")
+
+		for _, definedForwardingRuleID := range definedForwardingRuleIDs {
+			_, err := l.client.xelon.LoadBalancerClusters.DeleteForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, definedForwardingRuleID)
+			if err != nil {
+				return err
+			}
+		}
+	}
 
 	// build forwarding rules
 	logger.Info("Building forwarding rules request")
