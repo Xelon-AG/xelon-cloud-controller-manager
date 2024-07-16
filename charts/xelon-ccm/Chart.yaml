@@ -4,4 +4,4 @@ version: 0.1.0
 description: A Helm Chart for the Cloud Controller Manager on Xelon HQ
 type: application
 
-appVersion: "1.0.0"
+appVersion: "1.0.1"
