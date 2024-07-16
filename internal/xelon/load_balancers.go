@@ -111,11 +111,8 @@ func (l *loadBalancers) GetLoadBalancerName(_ context.Context, _ string, service
 	return cloudprovider.DefaultLoadBalancerName(service)
 }
 
-func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, _ string, service *v1.Service, _ []*v1.Node) (*v1.LoadBalancerStatus, error) {
+func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 	logger := klog.FromContext(ctx).WithValues("method", "EnsureLoadBalancer", "service", getServiceNameWithNamespace(service))
-
-	l.Lock()
-	defer l.Unlock()
 
 	xlb, err := l.retrieveXelonLoadBalancer(ctx, service)
 	if err != nil {
@@ -133,7 +130,7 @@ func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, _ string, servic
 		}
 	}
 
-	err = l.updateLoadBalancer(ctx, xlb, service)
+	err = l.UpdateLoadBalancer(ctx, clusterName, service, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -408,11 +405,33 @@ func (l *loadBalancers) fetchXelonLoadBalancerForwardingRules(ctx context.Contex
 }
 
 func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBalancer, service *v1.Service) error {
-	logger := configureLogger(ctx, "retrieveXelonLoadBalancer").WithValues(
+	logger := configureLogger(ctx, "updateLoadBalancer").WithValues(
 		"service", getServiceNameWithNamespace(service),
 	)
+
+	l.Lock()
+	defer l.Unlock()
+
 	patcher := newServicePatcher(l.client.k8s, service)
 	defer func() { _ = patcher.Patch(ctx) }()
+
+	// clean up old rules
+	if forwardingRuleIDs, ok := service.Annotations[serviceAnnotationLoadBalancerClusterForwardingRuleIDs]; ok && forwardingRuleIDs != "" {
+		logger.Info("Deleting previously specified forwarding rules", "forwarding_rule_ids", forwardingRuleIDs)
+		definedForwardingRuleIDs := strings.Split(forwardingRuleIDs, ",")
+
+		for _, definedForwardingRuleID := range definedForwardingRuleIDs {
+			resp, err := l.client.xelon.LoadBalancerClusters.DeleteForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, definedForwardingRuleID)
+			if err != nil {
+				if resp != nil && resp.StatusCode == http.StatusNotFound {
+					logger.Info("Skipping not existing forwarding rule", "forwarding_rule_id", definedForwardingRuleID)
+				} else {
+					return err
+				}
+			}
+		}
+		updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterForwardingRuleIDs, "")
+	}
 
 	// build forwarding rules
 	logger.Info("Building forwarding rules request")
@@ -429,6 +448,7 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 	if err != nil {
 		return err
 	}
+	logger.Info("Created forwarding rules", "rules", rules)
 
 	var frontendRules []string
 	for _, rule := range rules {
@@ -437,6 +457,7 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 		}
 	}
 
+	logger.Info("Applying forwarding rules annotation", "forwarding_rules_ids", strings.Join(frontendRules, ","))
 	updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterForwardingRuleIDs, strings.Join(frontendRules, ","))
 
 	return nil
