@@ -3,14 +3,15 @@ module github.com/Xelon-AG/xelon-cloud-controller-manager
 go 1.22
 
 require (
-	github.com/Xelon-AG/xelon-sdk-go v0.13.3
+	github.com/Xelon-AG/xelon-sdk-go v0.15.0
+	github.com/go-logr/logr v1.4.1
 	github.com/stretchr/testify v1.9.0
-	k8s.io/api v0.28.9
-	k8s.io/apimachinery v0.28.9
-	k8s.io/client-go v0.28.9
-	k8s.io/cloud-provider v0.28.9
-	k8s.io/component-base v0.28.9
-	k8s.io/klog/v2 v2.100.1
+	k8s.io/api v0.28.13
+	k8s.io/apimachinery v0.28.13
+	k8s.io/client-go v0.28.13
+	k8s.io/cloud-provider v0.28.13
+	k8s.io/component-base v0.28.13
+	k8s.io/klog/v2 v2.130.1
 )
 
 require (
@@ -29,7 +30,6 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -99,10 +99,10 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.28.9 // indirect
-	k8s.io/component-helpers v0.28.9 // indirect
-	k8s.io/controller-manager v0.28.9 // indirect
-	k8s.io/kms v0.28.9 // indirect
+	k8s.io/apiserver v0.28.13 // indirect
+	k8s.io/component-helpers v0.28.13 // indirect
+	k8s.io/controller-manager v0.28.13 // indirect
+	k8s.io/kms v0.28.13 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
