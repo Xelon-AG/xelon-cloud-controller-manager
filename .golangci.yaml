@@ -5,12 +5,12 @@ linters:
     - gofmt
     - goimports
     - gosimple
+    - govet
     - ineffassign
     - misspell
     - staticcheck
     - unconvert
     - unused
-    - vet
 
 output:
   formats:
