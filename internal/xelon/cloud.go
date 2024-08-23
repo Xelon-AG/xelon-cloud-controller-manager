@@ -30,6 +30,7 @@ type clients struct {
 
 type cloud struct {
 	clients       *clients
+	instances     cloudprovider.InstancesV2
 	loadBalancers cloudprovider.LoadBalancer
 }
 
@@ -79,6 +80,7 @@ func newCloud() (cloudprovider.Interface, error) {
 
 	return &cloud{
 		clients:       clients,
+		instances:     newInstances(clients, clusterID),
 		loadBalancers: newLoadBalancers(clients, tenant.TenantID, cloudID, clusterID),
 	}, nil
 }
@@ -97,7 +99,7 @@ func (c *cloud) Instances() (cloudprovider.Instances, bool) {
 }
 
 func (c *cloud) InstancesV2() (cloudprovider.InstancesV2, bool) {
-	return nil, false
+	return c.instances, true
 }
 
 func (c *cloud) Zones() (cloudprovider.Zones, bool) {
@@ -113,7 +115,6 @@ func (c *cloud) Routes() (cloudprovider.Routes, bool) {
 }
 
 func (c *cloud) ProviderName() string {
-	klog.V(5).Info("called ProviderName")
 	return ProviderName
 }
 
