@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.22 AS builder
+FROM golang:1.23 AS builder
 
 ARG GIT_COMMIT
 ARG GIT_TREE_STATE
