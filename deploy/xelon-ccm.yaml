@@ -96,7 +96,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: xelon-cloud-controller-manager
-          image: xelonag/xelon-cloud-controller-manager:v1.1.0
+          image: xelonag/xelon-cloud-controller-manager:v1.1.1
           imagePullPolicy: IfNotPresent
           args:
             - "--leader-elect=false"

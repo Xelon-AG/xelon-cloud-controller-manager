@@ -1,4 +1,4 @@
 Xelon Cloud Provider {{ .Chart.AppVersion }} was deployed in namespace {{ .Release.Namespace }}.
 
 To verify that xelon-cloud-controller-manager has successfully started, run:
-    kubectl -n kube-system logs --selector app=xelon-cloud-controller-manager
+    kubectl -n kube-system logs deployment/xelon-cloud-controller-manager
