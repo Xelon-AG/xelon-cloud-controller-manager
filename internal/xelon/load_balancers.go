@@ -415,92 +415,90 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 	patcher := newServicePatcher(l.client.k8s, service)
 	defer func() { _ = patcher.Patch(ctx) }()
 
-	var definedForwardingRuleIDs []string
+	// get current state
+	var currentForwardingRules []xelon.LoadBalancerClusterForwardingRule
+	var currentForwardingRuleIDs []string
 	if forwardingRuleIDs, ok := service.Annotations[serviceAnnotationLoadBalancerClusterForwardingRuleIDs]; ok && forwardingRuleIDs != "" {
-		definedForwardingRuleIDs = strings.Split(forwardingRuleIDs, ",")
+		currentForwardingRuleIDs = strings.Split(forwardingRuleIDs, ",")
 	}
-
 	existingForwardingRules, _, err := l.client.xelon.LoadBalancerClusters.ListForwardingRules(ctx, xlb.clusterID, xlb.virtualIPID)
 	if err != nil {
 		return err
 	}
-	var definedForwardingRules []xelon.LoadBalancerClusterForwardingRule
 	for _, existingForwardingRule := range existingForwardingRules {
-		if slices.Contains(definedForwardingRuleIDs, existingForwardingRule.Frontend.ID) {
-			definedForwardingRules = append(definedForwardingRules, existingForwardingRule)
+		if slices.Contains(currentForwardingRuleIDs, existingForwardingRule.Frontend.ID) {
+			currentForwardingRules = append(currentForwardingRules, existingForwardingRule)
 		}
 	}
+	logger.Info("Fetched current state for forwarding rules", "current_forwarding_rules", currentForwardingRules)
 
-	xlbUsedPorts := make(map[int]bool, len(definedForwardingRules))
-	for _, definedForwardingRule := range definedForwardingRules {
-		if definedForwardingRule.Frontend == nil {
-			continue
-		}
-		xlbUsedPorts[definedForwardingRule.Frontend.Port] = true
-	}
-
-	var frontendRules []string
+	// get desired state
+	var desiredForwardingRules []xelon.LoadBalancerClusterForwardingRule
 	for _, port := range service.Spec.Ports {
 		portNo := int(port.Port)
-		portExists := xlbUsedPorts[portNo]
-		delete(xlbUsedPorts, portNo)
+		forwardingRule := xelon.LoadBalancerClusterForwardingRule{
+			Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: int(port.NodePort)},
+			Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: portNo},
+		}
+		desiredForwardingRules = append(desiredForwardingRules, forwardingRule)
+	}
+	logger.Info("Calculated desired state for forwarding rules", "desired_forwarding_rules", desiredForwardingRules)
 
-		if portExists {
-			forwardingRuleID := ""
-			for _, definedForwardingRule := range definedForwardingRules {
-				if slices.Contains(definedForwardingRuleIDs, definedForwardingRule.Frontend.ID) {
-					forwardingRuleID = definedForwardingRule.Frontend.ID
-				}
+	// calculate diff (reconcile)
+	reconcileDiff := reconcile(currentForwardingRules, desiredForwardingRules)
+	logger.Info("Calculate reconcile state",
+		"rules_to_create", reconcileDiff.rulesToCreate,
+		"rules_to_update", reconcileDiff.rulesToUpdate,
+		"rules_to_delete", reconcileDiff.rulesToDelete,
+	)
 
+	var frontendRuleIDs []string
+	if len(reconcileDiff.rulesToCreate) > 0 {
+		logger.Info("Creating new forwarding rules", "payload", reconcileDiff.rulesToCreate)
+		rules, _, err := l.client.xelon.LoadBalancerClusters.CreateForwardingRules(ctx, xlb.clusterID, xlb.virtualIPID, reconcileDiff.rulesToCreate)
+		if err != nil {
+			return err
+		}
+		for _, rule := range rules {
+			if rule.Frontend == nil {
+				continue
 			}
-			logger.Info("Update existing forwarding rule", "port", portNo, "id", forwardingRuleID)
-			updateRequest := &xelon.LoadBalancerClusterForwardingRuleConfiguration{
-				Port: portNo,
+			frontendRuleIDs = append(frontendRuleIDs, rule.Frontend.ID)
+		}
+	}
+
+	if len(reconcileDiff.rulesToDelete) > 0 {
+		logger.Info("Deleting forwarding rules", "payload", reconcileDiff.rulesToDelete)
+		for _, ruleToDelete := range reconcileDiff.rulesToDelete {
+			if ruleToDelete.Frontend == nil {
+				continue
 			}
-			_, _, err := l.client.xelon.LoadBalancerClusters.UpdateForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, forwardingRuleID, updateRequest)
+			resp, err := l.client.xelon.LoadBalancerClusters.DeleteForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, ruleToDelete.Frontend.ID)
 			if err != nil {
-				return err
-			}
-			frontendRules = append(frontendRules, forwardingRuleID)
-		} else {
-			logger.Info("Create new forwarding rule", "port", portNo)
-
-			forwardingRule := []xelon.LoadBalancerClusterForwardingRule{{
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: int(port.NodePort)},
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: portNo},
-			}}
-
-			rules, _, err := l.client.xelon.LoadBalancerClusters.CreateForwardingRules(ctx, xlb.clusterID, xlb.virtualIPID, forwardingRule)
-			if err != nil {
-				return err
-			}
-			for _, rule := range rules {
-				if rule.Frontend != nil {
-					frontendRules = append(frontendRules, rule.Frontend.ID)
+				if resp != nil && resp.StatusCode == http.StatusNotFound {
+					logger.Info("Skipped removing not existing forwarding rule", "forwarding_rule_id", ruleToDelete.Frontend.ID)
+				} else {
+					return err
 				}
 			}
 		}
 	}
 
-	// remove any leftovers ports
-	for port := range xlbUsedPorts {
-		for _, existingForwardingRule := range existingForwardingRules {
-			if existingForwardingRule.Frontend.Port == port {
-				logger.Info("Deleting leftover forwarding rule", "port", port, "frontend_id", existingForwardingRule.Frontend.ID)
-				resp, err := l.client.xelon.LoadBalancerClusters.DeleteForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, existingForwardingRule.Frontend.ID)
-				if err != nil {
-					if resp != nil && resp.StatusCode == http.StatusNotFound {
-						logger.Info("Skipping not existing forwarding rule", "forwarding_rule_id", existingForwardingRule.Frontend.ID)
-					} else {
-						return err
-					}
-				}
+	// normalize ids
+	forwardingRuleIDs := slices.Concat(currentForwardingRuleIDs, frontendRuleIDs)
+	slices.Sort(forwardingRuleIDs)
+	forwardingRuleIDs = slices.Compact(forwardingRuleIDs)
+	if len(reconcileDiff.rulesToDelete) > 0 {
+		for _, ruleToDelete := range reconcileDiff.rulesToDelete {
+			if ruleToDelete.Frontend == nil {
+				continue
 			}
+			forwardingRuleIDs = slices.DeleteFunc(forwardingRuleIDs, deleteByFrontendID(ruleToDelete.Frontend.ID))
 		}
 	}
 
-	logger.Info("Applying forwarding rules annotation", "forwarding_rules_ids", strings.Join(frontendRules, ","))
-	updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterForwardingRuleIDs, strings.Join(frontendRules, ","))
+	logger.Info("Applying forwarding rules annotation", "forwarding_rules_ids", strings.Join(forwardingRuleIDs, ","))
+	updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterForwardingRuleIDs, strings.Join(forwardingRuleIDs, ","))
 
 	return nil
 }
@@ -524,16 +522,16 @@ func isVirtualIPAvailable(virtualIP *xelon.LoadBalancerClusterVirtualIP, forward
 	}
 
 	// combine all frontend ports, so we can check it later
-	var frontedPorts []int32
+	var frontendPorts []int32
 	for _, forwardingRule := range forwardingRules {
 		if forwardingRule.Frontend != nil {
-			frontedPorts = append(frontedPorts, int32(forwardingRule.Frontend.Port))
+			frontendPorts = append(frontendPorts, int32(forwardingRule.Frontend.Port))
 		}
 	}
 
 	// check if service's ports are already configured in forwarding rules
 	for _, servicePort := range service.Spec.Ports {
-		if slices.Contains(frontedPorts, servicePort.Port) {
+		if slices.Contains(frontendPorts, servicePort.Port) {
 			return false
 		}
 	}
