@@ -80,16 +80,16 @@ func TestReconcile_updateRules(t *testing.T) {
 		},
 		"update with new backend port": {
 			current: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800, ID: "u0gkddw9rr"},
 			}},
 			desired: []xelon.LoadBalancerClusterForwardingRule{{
 				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
 				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 99999},
 			}},
 			expected: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 99999},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 99999, ID: "u0gkddw9rr"},
 			}},
 		},
 	}

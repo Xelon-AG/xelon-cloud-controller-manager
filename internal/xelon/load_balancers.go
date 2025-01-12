@@ -467,6 +467,16 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 		}
 	}
 
+	if len(reconcileDiff.rulesToUpdate) > 0 {
+		for _, ruleToUpdate := range reconcileDiff.rulesToUpdate {
+			logger.Info("Updating existing forwarding backend rule", "payload", ruleToUpdate.Backend)
+			_, _, err := l.client.xelon.LoadBalancerClusters.UpdateForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, ruleToUpdate.Backend.ID, ruleToUpdate.Backend)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if len(reconcileDiff.rulesToDelete) > 0 {
 		logger.Info("Deleting forwarding rules", "payload", reconcileDiff.rulesToDelete)
 		for _, ruleToDelete := range reconcileDiff.rulesToDelete {
