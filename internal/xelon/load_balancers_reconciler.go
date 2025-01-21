@@ -38,7 +38,7 @@ func reconcile(currentRules []xelon.LoadBalancerClusterForwardingRule, desiredRu
 				continue
 			}
 			if currentRule.Frontend.Port == desiredRule.Frontend.Port &&
-				currentRule.Backend.Port != desiredRule.Backend.Port {
+				(currentRule.Backend.Port != desiredRule.Backend.Port || currentRule.Backend.ProxyProtocol != desiredRule.Backend.ProxyProtocol) {
 				desiredRule.Frontend.ID = currentRule.Frontend.ID
 				desiredRule.Backend.ID = currentRule.Backend.ID
 				reconcileDiff.rulesToUpdate = append(reconcileDiff.rulesToUpdate, desiredRule)

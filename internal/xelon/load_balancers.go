@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +44,14 @@ const (
 	// serviceAnnotationLoadBalancerClusterCreatingEnabled is the annotation
 	// used on the service to allow creation of new load balancer clusters.
 	// serviceAnnotationLoadBalancerClusterCreatingEnabled = "service.beta.kubernetes.io/xelon-load-balancer-cluster-creating-enabled"
+
+	// serviceAnnotationLoadBalancerClusterProxyProtocolVersion is the annotation
+	// used on the service to allow to specify proxy protocol version.
+	//
+	//   - 0: default value, don't send proxy protocol to the backend
+	//   - 1: Proxy Protocol version 1 (text format)
+	//   - 2: Proxy Protocol version 2 (binary format)
+	serviceAnnotationLoadBalancerClusterProxyProtocolVersion = "service.beta.kubernetes.io/xelon-load-balancer-cluster-proxy-protocol-version"
 )
 
 var (
@@ -173,7 +182,7 @@ func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, _ string,
 		return nil
 	}
 
-	var frontendRules []xelon.LoadBalancerClusterForwardingRuleConfiguration
+	var frontendRules []xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration
 	for _, forwardingRule := range xlb.forwardingRules {
 		if forwardingRule.Frontend != nil {
 			frontendRules = append(frontendRules, *forwardingRule.Frontend)
@@ -415,6 +424,17 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 	patcher := newServicePatcher(l.client.k8s, service)
 	defer func() { _ = patcher.Patch(ctx) }()
 
+	// check proxy_protocol annotation
+	protocolVersion := 0
+	if protocolVersionAsString, ok := service.Annotations[serviceAnnotationLoadBalancerClusterProxyProtocolVersion]; ok && protocolVersionAsString != "" {
+		parsedProtocolVersion, err := strconv.Atoi(protocolVersionAsString)
+		if err != nil {
+			return fmt.Errorf("could not convert proxy protocol version (%v) to integer", protocolVersionAsString)
+		}
+		protocolVersion = parsedProtocolVersion
+		logger.Info("Proxy protocol annotation is defined and will be used for backend forwarding rules", "proxy_protocol", protocolVersion)
+	}
+
 	// get current state
 	var currentForwardingRules []xelon.LoadBalancerClusterForwardingRule
 	var currentForwardingRuleIDs []string
@@ -437,8 +457,8 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 	for _, port := range service.Spec.Ports {
 		portNo := int(port.Port)
 		forwardingRule := xelon.LoadBalancerClusterForwardingRule{
-			Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: int(port.NodePort)},
-			Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: portNo},
+			Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: int(port.NodePort), ProxyProtocol: protocolVersion},
+			Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: portNo},
 		}
 		desiredForwardingRules = append(desiredForwardingRules, forwardingRule)
 	}
@@ -469,8 +489,12 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 
 	if len(reconcileDiff.rulesToUpdate) > 0 {
 		for _, ruleToUpdate := range reconcileDiff.rulesToUpdate {
-			logger.Info("Updating existing forwarding backend rule", "payload", ruleToUpdate.Backend)
-			_, _, err := l.client.xelon.LoadBalancerClusters.UpdateForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, ruleToUpdate.Backend.ID, ruleToUpdate.Backend)
+			updateRequest := &xelon.LoadBalancerClusterForwardingRuleUpdateResponse{
+				Port:          ruleToUpdate.Backend.Port,
+				ProxyProtocol: ruleToUpdate.Backend.ProxyProtocol,
+			}
+			logger.Info("Updating existing forwarding backend rule", "payload", updateRequest)
+			_, _, err := l.client.xelon.LoadBalancerClusters.UpdateForwardingRule(ctx, xlb.clusterID, xlb.virtualIPID, ruleToUpdate.Backend.ID, updateRequest)
 			if err != nil {
 				return err
 			}
