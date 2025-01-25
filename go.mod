@@ -5,7 +5,7 @@ go 1.23
 toolchain go1.23.0
 
 require (
-	github.com/Xelon-AG/xelon-sdk-go v0.15.1
+	github.com/Xelon-AG/xelon-sdk-go v0.15.4
 	github.com/go-logr/logr v1.4.1
 	github.com/stretchr/testify v1.9.0
 	k8s.io/api v0.28.13

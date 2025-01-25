@@ -32,9 +32,9 @@ func TestIsVirtualIPAvailable_reservedState(t *testing.T) {
 func TestIsVirtualIPAvailable_noFrontendForwardingRules(t *testing.T) {
 	virtualIP := &xelon.LoadBalancerClusterVirtualIP{State: "free"}
 	forwardingRules := []xelon.LoadBalancerClusterForwardingRule{
-		{Backend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080}},
-		{Backend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8081}},
-		{Backend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8082}},
+		{Backend: &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 8080}},
+		{Backend: &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 8081}},
+		{Backend: &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 8082}},
 	}
 	service := &v1.Service{Spec: v1.ServiceSpec{
 		Ports: []v1.ServicePort{
@@ -52,7 +52,7 @@ func TestIsVirtualIPAvailable_noFrontendForwardingRules(t *testing.T) {
 func TestIsVirtualIPAvailable_frontedPortExists(t *testing.T) {
 	virtualIP := &xelon.LoadBalancerClusterVirtualIP{State: "free"}
 	forwardingRules := []xelon.LoadBalancerClusterForwardingRule{
-		{Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080}},
+		{Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080}},
 	}
 	service := &v1.Service{Spec: v1.ServiceSpec{
 		Ports: []v1.ServicePort{
@@ -70,7 +70,7 @@ func TestIsVirtualIPAvailable_frontedPortExists(t *testing.T) {
 func TestIsVirtualIPAvailable_frontedPortAvailable(t *testing.T) {
 	virtualIP := &xelon.LoadBalancerClusterVirtualIP{State: "free"}
 	forwardingRules := []xelon.LoadBalancerClusterForwardingRule{
-		{Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080}},
+		{Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080}},
 	}
 	service := &v1.Service{Spec: v1.ServiceSpec{
 		Ports: []v1.ServicePort{

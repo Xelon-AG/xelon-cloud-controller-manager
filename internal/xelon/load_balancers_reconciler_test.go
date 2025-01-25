@@ -23,37 +23,37 @@ func TestReconcile_createRules(t *testing.T) {
 		"nil current": {
 			current: nil,
 			desired: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}},
 			expected: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}},
 		},
 		"nil desired": {
 			current: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}},
 			desired:  nil,
 			expected: nil,
 		},
 		"add rule from desired": {
 			current: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}},
 			desired: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}, {
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8090},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80900},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8090},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80900},
 			}},
 			expected: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8090},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80900},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8090},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80900},
 			}},
 		},
 	}
@@ -80,16 +80,30 @@ func TestReconcile_updateRules(t *testing.T) {
 		},
 		"update with new backend port": {
 			current: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800, ID: "u0gkddw9rr"},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800, ID: "u0gkddw9rr"},
 			}},
 			desired: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 99999},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 99999},
 			}},
 			expected: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 99999, ID: "u0gkddw9rr"},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 99999, ID: "u0gkddw9rr"},
+			}},
+		},
+		"update with new proxy_protocol": {
+			current: []xelon.LoadBalancerClusterForwardingRule{{
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800, ID: "u0gkddw9rr", ProxyProtocol: 0},
+			}},
+			desired: []xelon.LoadBalancerClusterForwardingRule{{
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800, ProxyProtocol: 1},
+			}},
+			expected: []xelon.LoadBalancerClusterForwardingRule{{
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800, ID: "u0gkddw9rr", ProxyProtocol: 1},
 			}},
 		},
 	}
@@ -116,16 +130,16 @@ func TestReconcile_deleteRules(t *testing.T) {
 		},
 		"remove non-used existed rule": {
 			current: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}},
 			desired: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8090},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80900},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8090},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80900},
 			}},
 			expected: []xelon.LoadBalancerClusterForwardingRule{{
-				Frontend: &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 8080, ID: "5qggn9mtbz"},
-				Backend:  &xelon.LoadBalancerClusterForwardingRuleConfiguration{Port: 80800},
+				Frontend: &xelon.LoadBalancerClusterForwardingRuleFrontendConfiguration{Port: 8080, ID: "5qggn9mtbz"},
+				Backend:  &xelon.LoadBalancerClusterForwardingRuleBackendConfiguration{Port: 80800},
 			}},
 		},
 	}
