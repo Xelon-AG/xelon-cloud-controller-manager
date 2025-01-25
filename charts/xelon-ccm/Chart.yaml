@@ -1,8 +1,8 @@
 apiVersion: v2
 name: xelon-cloud-controller-manager
-version: 1.1.2
+version: 1.2.0
 description: A Helm Chart for the Cloud Controller Manager on Xelon HQ
 type: application
 
-appVersion: "1.1.2"
+appVersion: "1.2.0"
 
