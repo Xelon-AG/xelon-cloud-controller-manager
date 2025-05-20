@@ -110,9 +110,7 @@ func (l *loadBalancers) GetLoadBalancer(ctx context.Context, _ string, service *
 	logger.WithValues("ip_address", xlb.virtualIPAddress).Info("Load balancer virtual IP address")
 
 	return &v1.LoadBalancerStatus{
-		Ingress: []v1.LoadBalancerIngress{{
-			IP: xlb.virtualIPAddress,
-		}},
+		Ingress: l.buildLoadBalancerStatusIngress(ctx, xlb, service),
 	}, true, nil
 }
 
@@ -145,9 +143,7 @@ func (l *loadBalancers) EnsureLoadBalancer(ctx context.Context, clusterName stri
 	}
 
 	return &v1.LoadBalancerStatus{
-		Ingress: []v1.LoadBalancerIngress{{
-			IP: xlb.virtualIPAddress,
-		}},
+		Ingress: l.buildLoadBalancerStatusIngress(ctx, xlb, service),
 	}, nil
 }
 
@@ -535,6 +531,33 @@ func (l *loadBalancers) updateLoadBalancer(ctx context.Context, xlb *xelonLoadBa
 	updateServiceAnnotation(service, serviceAnnotationLoadBalancerClusterForwardingRuleIDs, strings.Join(forwardingRuleIDs, ","))
 
 	return nil
+}
+
+func (l *loadBalancers) buildLoadBalancerStatusIngress(ctx context.Context, xlb *xelonLoadBalancer, service *v1.Service) []v1.LoadBalancerIngress {
+	logger := configureLogger(ctx, "buildLoadBalancerStatusIngress").WithValues(
+		"service", getServiceNameWithNamespace(service),
+	)
+
+	ipMode := v1.LoadBalancerIPModeVIP
+
+	protocolVersion := 0
+	if protocolVersionAsString, ok := service.Annotations[serviceAnnotationLoadBalancerClusterProxyProtocolVersion]; ok && protocolVersionAsString != "" {
+		parsedProtocolVersion, err := strconv.Atoi(protocolVersionAsString)
+		if err != nil {
+			logger.Info("Could not convert proxy protocol version, fallback to 0")
+		} else {
+			protocolVersion = parsedProtocolVersion
+			logger.Info("Proxy protocol annotation is defined and will be used for load balancer ingress", "proxy_protocol", protocolVersion)
+		}
+	}
+	if protocolVersion > 0 {
+		ipMode = v1.LoadBalancerIPModeProxy
+	}
+
+	return []v1.LoadBalancerIngress{{
+		IP:     xlb.virtualIPAddress,
+		IPMode: &ipMode,
+	}}
 }
 
 func updateServiceAnnotation(service *v1.Service, annotationName, annotationValue string) {
