@@ -5,7 +5,7 @@ import (
 	"runtime"
 )
 
-// These are set during build time via -ldflags
+// These are set during build time via -ldflags.
 var (
 	gitCommit       = "none"
 	gitTreeState    = "none"

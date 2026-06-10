@@ -1,8 +1,6 @@
 module github.com/Xelon-AG/xelon-cloud-controller-manager
 
-go 1.23
-
-toolchain go1.23.0
+go 1.26
 
 require (
 	github.com/Xelon-AG/xelon-sdk-go v0.15.4

@@ -1,21 +1,35 @@
+version: "2"
+
 linters:
-  disable-all: true
+  default: none
   enable:
+    - copyloopvar
+    - durationcheck
     - errcheck
-    - gofmt
-    - goimports
-    - gosimple
-    - govet
+    - godot
     - ineffassign
+    - makezero
     - misspell
+    - nilerr
+    - predeclared
     - staticcheck
     - unconvert
+    - unparam
     - unused
+    - usetesting
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Xelon-AG/xelon-cloud-controller-manager
+        - github.com/Xelon-AG/xelon-sdk-go
 
 output:
   formats:
-    - format: tab
-  show-stats: true
-
-run:
-  timeout: 10m
+    tab:
+      path: stdout
+      colors: false

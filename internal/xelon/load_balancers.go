@@ -29,10 +29,6 @@ const (
 	// to identify Xelon load balancer cluster. Read-only.
 	serviceAnnotationLoadBalancerClusterID = "kubernetes.xelon.ch/load-balancer-cluster-id"
 
-	// serviceAnnotationLoadBalancerClusterName is the annotation used on the service
-	// to identify Xelon load balancer cluster name. Read-only.
-	// serviceAnnotationLoadBalancerClusterName = "kubernetes.xelon.ch/load-balancer-cluster-name"
-
 	// serviceAnnotationLoadBalancerClusterVirtualIPID is the annotation used on the service
 	// to identify Xelon load balancer cluster virtual IP. Read-only.
 	serviceAnnotationLoadBalancerClusterVirtualIPID = "kubernetes.xelon.ch/load-balancer-cluster-virtual-ip-id"
@@ -40,10 +36,6 @@ const (
 	// serviceAnnotationLoadBalancerClusterForwardingRuleIDs is the annotation used on the service
 	// to identify frontend forwarding rules for the virtual IP. Comma-separated, read-only.
 	serviceAnnotationLoadBalancerClusterForwardingRuleIDs = "kubernetes.xelon.ch/load-balancer-cluster-forwarding-rule-ids"
-
-	// serviceAnnotationLoadBalancerClusterCreatingEnabled is the annotation
-	// used on the service to allow creation of new load balancer clusters.
-	// serviceAnnotationLoadBalancerClusterCreatingEnabled = "service.beta.kubernetes.io/xelon-load-balancer-cluster-creating-enabled"
 
 	// serviceAnnotationLoadBalancerClusterProxyProtocolVersion is the annotation
 	// used on the service to allow to specify proxy protocol version.
@@ -561,10 +553,10 @@ func (l *loadBalancers) buildLoadBalancerStatusIngress(ctx context.Context, xlb 
 }
 
 func updateServiceAnnotation(service *v1.Service, annotationName, annotationValue string) {
-	if service.ObjectMeta.Annotations == nil {
-		service.ObjectMeta.Annotations = map[string]string{}
+	if service.Annotations == nil {
+		service.Annotations = map[string]string{}
 	}
-	service.ObjectMeta.Annotations[annotationName] = annotationValue
+	service.Annotations[annotationName] = annotationValue
 }
 
 func isVirtualIPAvailable(virtualIP *xelon.LoadBalancerClusterVirtualIP, forwardingRules []xelon.LoadBalancerClusterForwardingRule, service *v1.Service) bool {
