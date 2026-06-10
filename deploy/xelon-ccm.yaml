@@ -5,6 +5,7 @@ kind: ServiceAccount
 metadata:
   name: xelon-cloud-controller-manager
   namespace: kube-system
+
 ---
 # Source: xelon-cloud-controller-manager/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -58,6 +59,7 @@ subjects:
   - kind: ServiceAccount
     name: xelon-cloud-controller-manager
     namespace: kube-system
+
 ---
 # Source: xelon-cloud-controller-manager/templates/deployment.yaml
 apiVersion: apps/v1
@@ -88,6 +90,8 @@ spec:
           effect: NoSchedule
         - key: "node-role.kubernetes.io/master"
           effect: NoSchedule
+        - key: "node-role.kubernetes.io/control-plane"
+          effect: NoSchedule
         - key: "node.kubernetes.io/not-ready"
           operator: Exists
           effect: NoSchedule
@@ -96,7 +100,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: xelon-cloud-controller-manager
-          image: xelonag/xelon-cloud-controller-manager:v1.3.0
+          image: xelonag/xelon-cloud-controller-manager:v1.4.0
           imagePullPolicy: IfNotPresent
           args:
             - "--leader-elect=false"
