@@ -119,7 +119,7 @@ func (i *instances) lookupXelonNode(ctx context.Context, node *v1.Node) (*xelonN
 	}
 }
 
-// refreshNodes conditionally loads all control plane nodes, cluster pool nodes from Xelon API
+// refreshNodes conditionally loads all control plane and node pool nodes from Xelon API
 // and caches them. It does not refresh if the last update happened less than 'nodeCache.ttl' ago.
 func (i *instances) refreshNodes(ctx context.Context) error {
 	i.Lock()
@@ -132,7 +132,7 @@ func (i *instances) refreshNodes(ctx context.Context) error {
 	}
 
 	klog.V(5).InfoS("Getting control planes from Xelon API", "cluster_id", i.clusterID)
-	controlPlane, _, err := i.client.xelon.Kubernetes.ListControlPlanes(ctx, i.clusterID)
+	controlPlane, _, err := i.client.xelon.Kubernetes.ListControlPlane(ctx, i.clusterID)
 	if err != nil {
 		return err
 	}
@@ -146,24 +146,24 @@ func (i *instances) refreshNodes(ctx context.Context) error {
 		})
 	}
 
-	klog.V(5).InfoS("Getting cluster pools from Xelon API", "cluster_id", i.clusterID)
-	clusterPools, _, err := i.client.xelon.Kubernetes.ListClusterPools(ctx, i.clusterID)
+	klog.V(5).InfoS("Getting node pools from Xelon API", "cluster_id", i.clusterID)
+	nodePools, _, err := i.client.xelon.Kubernetes.ListNodePools(ctx, i.clusterID)
 	if err != nil {
 		return err
 	}
-	klog.V(5).InfoS("Got cluster pools from Xelon API", "data", clusterPools)
-	var clusterPoolNodes []xelonNode
-	for _, clusterPool := range clusterPools {
-		for _, clusterPoolNode := range clusterPool.Nodes {
-			clusterPoolNodes = append(clusterPoolNodes, xelonNode{
-				localVMID: clusterPoolNode.LocalVMID,
-				name:      clusterPoolNode.Name,
-				nodeType:  getNodeTypeFromClusterPool(&clusterPool),
+	klog.V(5).InfoS("Got node pools from Xelon API", "data", nodePools)
+	var nodePoolNodes []xelonNode
+	for _, nodePool := range nodePools {
+		for _, nodePoolNode := range nodePool.Nodes {
+			nodePoolNodes = append(nodePoolNodes, xelonNode{
+				localVMID: nodePoolNode.LocalVMID,
+				name:      nodePoolNode.Name,
+				nodeType:  getNodeTypeFromNodePool(&nodePool),
 			})
 		}
 	}
 
-	i.nodes = slices.Concat(controlPlaneNodes, clusterPoolNodes)
+	i.nodes = slices.Concat(controlPlaneNodes, nodePoolNodes)
 	i.lastUpdate = time.Now()
 
 	return nil
@@ -194,23 +194,23 @@ func (i *instances) getXelonNodeByName(name string) (*xelonNode, error) {
 //   - cpu_info: shows CPU core count (e.g. c2c - 2 cores)
 //   - memory_info: shows RAM in gigabytes (e.g. m4g - 4 GB)
 //   - disk_info: shows disk size in gigabytes (e.g. d50g - 50 GB)
-func getNodeTypeFromControlPlaneNode(controlPlane *xelon.ClusterControlPlane) string {
+func getNodeTypeFromControlPlaneNode(controlPlane *xelon.KubernetesClusterControlPlane) string {
 	if controlPlane == nil {
 		return ""
 	}
-	return fmt.Sprintf("c%dc-m%dg-d%dg", controlPlane.CPUCoreCount, controlPlane.Memory, controlPlane.DiskSize)
+	return fmt.Sprintf("c%dc-m%dg-d%dg", controlPlane.CPUCores, controlPlane.RAM, controlPlane.DiskSize)
 }
 
-// getNodeTypeFromClusterPool formats a node type from cluster pool parameters
+// getNodeTypeFromNodePool formats a node type from node pool parameters
 // in the following form <cpu_info>-<memory_info>-<disk_info>:
 //   - cpu_info: shows CPU core count (e.g. c2c - 2 cores)
 //   - memory_info: shows RAM in gigabytes (e.g. m4g - 4 GB)
 //   - disk_info: shows disk size in gigabytes (e.g. d50g - 50 GB)
-func getNodeTypeFromClusterPool(clusterPool *xelon.ClusterPool) string {
-	if clusterPool == nil {
+func getNodeTypeFromNodePool(nodePool *xelon.KubernetesClusterNodePool) string {
+	if nodePool == nil {
 		return ""
 	}
-	return fmt.Sprintf("c%dc-m%dg-d%dg", clusterPool.CPUCoreCount, clusterPool.Memory, clusterPool.DiskSize)
+	return fmt.Sprintf("c%dc-m%dg-d%dg", nodePool.CPUCores, nodePool.RAM, nodePool.DiskSize)
 }
 
 func parseProviderID(providerID string) (string, error) {

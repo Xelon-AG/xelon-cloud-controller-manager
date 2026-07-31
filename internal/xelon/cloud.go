@@ -81,7 +81,7 @@ func newCloud() (cloudprovider.Interface, error) {
 	return &cloud{
 		clients:       clients,
 		instances:     newInstances(clients, clusterID),
-		loadBalancers: newLoadBalancers(clients, tenant.TenantID, cloudID, clusterID),
+		loadBalancers: newLoadBalancers(clients, tenant.ID, cloudID, clusterID),
 	}, nil
 }
 
