@@ -3,9 +3,9 @@ module github.com/Xelon-AG/xelon-cloud-controller-manager
 go 1.26
 
 require (
-	github.com/Xelon-AG/xelon-sdk-go v0.15.4
+	github.com/Xelon-AG/xelon-sdk-go v1.14.4
 	github.com/go-logr/logr v1.4.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.30.12
 	k8s.io/apimachinery v0.30.12
 	k8s.io/client-go v0.30.12
@@ -39,8 +39,8 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/cel-go v0.17.8 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
